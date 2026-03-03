@@ -1,26 +1,15 @@
 import { NextResponse } from "next/server";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BINANCE API — Gratuit, sans clé, temps réel, klines natifs 4H/1J/1W
+// CRYPTO — Kraken API (gratuit, sans clé, compatible Vercel/US)
+// Binance bloque les IPs américaines (erreur 451 sur Vercel)
+// Kraken n'a pas de restriction géographique
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SYMBOL_MAP: Record<string, string> = {
-  BTC: "BTCUSDT",
-  ETH: "ETHUSDT",
-  SOL: "SOLUSDT",
-};
-
-const INTERVAL_MAP: Record<string, string> = {
-  "4H": "4h",
-  "1J": "1d",
-  "1W": "1w",
-};
-
-// 60 points minimum pour RSI(14), MACD(26), BB(20)
-const LIMIT_MAP: Record<string, number> = {
-  "4H": 60,
-  "1J": 60,
-  "1W": 52,
+const KRAKEN_PAIR: Record<string, string> = {
+  BTC: "XXBTZUSD",
+  ETH: "XETHZUSD",
+  SOL: "SOLUSD",
 };
 
 const NAME_MAP: Record<string, string> = {
@@ -29,53 +18,88 @@ const NAME_MAP: Record<string, string> = {
   SOL: "Solana",
 };
 
-const BINANCE = "https://api.binance.com/api/v3";
+// Nombre de points d'historique selon timeframe
+// Kraken interval en minutes : 240 = 4H, 1440 = 1J, 10080 = 1W
+const INTERVAL_MAP: Record<string, number> = {
+  "4H": 240,
+  "1J": 1440,
+  "1W": 10080,
+};
+
+const LIMIT_MAP: Record<string, number> = {
+  "4H": 60,
+  "1J": 60,
+  "1W": 52,
+};
+
+const KRAKEN = "https://api.kraken.com/0/public";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const symbol    = searchParams.get("symbol") || "BTC";
   const timeframe = searchParams.get("timeframe") || "1J";
-  const pair      = SYMBOL_MAP[symbol];
+  const pair      = KRAKEN_PAIR[symbol];
 
   if (!pair) {
     return NextResponse.json({ error: `Symbole invalide : ${symbol}` }, { status: 400 });
   }
 
-  const interval = INTERVAL_MAP[timeframe] ?? "1d";
+  const interval = INTERVAL_MAP[timeframe] ?? 1440;
   const limit    = LIMIT_MAP[timeframe] ?? 60;
 
   try {
-    const [tickerRes, klineRes, priceRes] = await Promise.all([
-      fetch(`${BINANCE}/ticker/24hr?symbol=${pair}`, { next: { revalidate: 15 } }),
-      fetch(`${BINANCE}/klines?symbol=${pair}&interval=${interval}&limit=${limit}`, { next: { revalidate: 20 } }),
-      fetch(`${BINANCE}/ticker/price?symbol=${pair}`, { next: { revalidate: 5 } }),
+    // since = timestamp Unix du début de la période souhaitée
+    const sinceTs = Math.floor(Date.now() / 1000) - interval * 60 * limit;
+
+    const [tickerRes, ohlcRes] = await Promise.all([
+      fetch(`${KRAKEN}/Ticker?pair=${pair}`, {
+        next: { revalidate: 15 },
+      }),
+      fetch(`${KRAKEN}/OHLC?pair=${pair}&interval=${interval}&since=${sinceTs}`, {
+        next: { revalidate: 20 },
+      }),
     ]);
 
-    if (!tickerRes.ok) throw new Error(`Binance ticker error ${tickerRes.status}`);
-    if (!klineRes.ok)  throw new Error(`Binance klines error ${klineRes.status}`);
+    if (!tickerRes.ok) throw new Error(`Kraken ticker HTTP ${tickerRes.status}`);
+    if (!ohlcRes.ok)   throw new Error(`Kraken OHLC HTTP ${ohlcRes.status}`);
 
-    const [ticker, klines, priceData] = await Promise.all([
+    const [tickerJson, ohlcJson] = await Promise.all([
       tickerRes.json(),
-      klineRes.json(),
-      priceRes.json(),
+      ohlcRes.json(),
     ]);
 
-    // Klines : [openTime, open, high, low, close, volume, ...]
-    const history = (klines as any[][]).map((k) => ({
-      date:   new Date(k[0]).toISOString(),
-      price:  parseFloat(parseFloat(k[4]).toFixed(4)),
-      volume: parseFloat(parseFloat(k[5]).toFixed(2)),
-    }));
+    if (tickerJson.error?.length) throw new Error(`Kraken: ${tickerJson.error[0]}`);
+    if (ohlcJson.error?.length)   throw new Error(`Kraken OHLC: ${ohlcJson.error[0]}`);
 
-    const currentPrice = parseFloat(priceData.price);
+    const tickerData = tickerJson.result?.[pair] ?? tickerJson.result?.[Object.keys(tickerJson.result)[0]];
+    const ohlcData   = ohlcJson.result?.[pair]   ?? ohlcJson.result?.[Object.keys(ohlcJson.result).find(k => k !== "last")!];
+
+    if (!tickerData) throw new Error("Données ticker Kraken introuvables");
+
+    // Kraken ticker : c = last trade, h = 24h high, l = 24h low, v = volume, p = vwap
+    const currentPrice = parseFloat(tickerData.c[0]);
+    const high24h      = parseFloat(tickerData.h[1]); // [1] = last 24h
+    const low24h       = parseFloat(tickerData.l[1]);
+    const volume24h    = parseFloat(tickerData.v[1]) * currentPrice; // en USD
+    const openPrice    = parseFloat(tickerData.o);
+    const change24h    = openPrice > 0 ? ((currentPrice - openPrice) / openPrice) * 100 : 0;
+
+    // OHLC Kraken : [time, open, high, low, close, vwap, volume, count]
+    const history = (ohlcData as any[][])
+      .slice(-limit)
+      .map((k) => ({
+        date:   new Date(k[0] * 1000).toISOString(),
+        price:  parseFloat(parseFloat(k[4]).toFixed(4)), // close
+        volume: parseFloat(k[6]),
+      }));
 
     return NextResponse.json({
       name:                  NAME_MAP[symbol] || symbol,
       price:                 currentPrice,
-      change24h:             parseFloat(parseFloat(ticker.priceChangePercent).toFixed(3)),
-      high24h:               parseFloat(ticker.highPrice),
-      low24h:                parseFloat(ticker.lowPrice),
-      volume24h:             parseFloat(ticker.quoteVolume),
+      change24h:             parseFloat(change24h.toFixed(3)),
+      high24h,
+      low24h,
+      volume24h,
       marketCap:             undefined,
       circulatingSupply:     undefined,
       fullyDilutedValuation: undefined,
@@ -84,9 +108,9 @@ export async function GET(req: Request) {
     });
 
   } catch (error: any) {
-    console.error("[API/crypto Binance]", error.message);
+    console.error("[API/crypto Kraken]", error.message);
     return NextResponse.json(
-      { error: `Erreur Binance : ${error.message}` },
+      { error: `Erreur Kraken : ${error.message}` },
       { status: 500 }
     );
   }
