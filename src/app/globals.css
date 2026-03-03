@@ -1,1 +1,449 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FUNDATRADE — Design System
+   Terminal financier pro : vert emeraude, fond quasi-noir, monospace sharp
+═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ─── Variables CSS — Thème sombre (défaut) ─────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  /* Backgrounds */
+  --bg-base:        #050a0e;
+  --bg-surface:     #091219;
+  --bg-card:        #0d1a22;
+  --bg-card-hover:  #112233;
+  --bg-input:       #0a1520;
+  --bg-overlay:     rgba(5, 10, 14, 0.85);
+
+  /* Accent principal — vert émeraude */
+  --accent:         #00ff88;
+  --accent-dim:     #00cc6a;
+  --accent-glow:    rgba(0, 255, 136, 0.15);
+  --accent-subtle:  rgba(0, 255, 136, 0.06);
+
+  /* Texte */
+  --text-primary:   #e8f4f0;
+  --text-secondary: #7a9e90;
+  --text-muted:     #3d5a52;
+  --text-accent:    #00ff88;
+
+  /* Bordures */
+  --border:         rgba(0, 255, 136, 0.12);
+  --border-strong:  rgba(0, 255, 136, 0.28);
+  --border-subtle:  rgba(255, 255, 255, 0.04);
+
+  /* Statuts */
+  --bull:           #00ff88;
+  --bull-bg:        rgba(0, 255, 136, 0.08);
+  --bear:           #ff4466;
+  --bear-bg:        rgba(255, 68, 102, 0.08);
+  --neutral:        #ffa520;
+  --neutral-bg:     rgba(255, 165, 32, 0.08);
+
+  /* Graphique */
+  --chart-line:     #00ff88;
+  --chart-fill:     rgba(0, 255, 136, 0.08);
+  --chart-grid:     rgba(0, 255, 136, 0.06);
+  --chart-tooltip:  #091219;
+
+  /* Scrollbar */
+  --scrollbar-track: #091219;
+  --scrollbar-thumb: rgba(0, 255, 136, 0.2);
+}
+
+/* ─── Thème clair ───────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-base:        #f0f7f4;
+  --bg-surface:     #e4f0eb;
+  --bg-card:        #ffffff;
+  --bg-card-hover:  #f5fdf8;
+  --bg-input:       #edf7f2;
+  --bg-overlay:     rgba(240, 247, 244, 0.92);
+
+  --accent:         #008844;
+  --accent-dim:     #006633;
+  --accent-glow:    rgba(0, 136, 68, 0.12);
+  --accent-subtle:  rgba(0, 136, 68, 0.05);
+
+  --text-primary:   #0a2018;
+  --text-secondary: #3a6050;
+  --text-muted:     #7aaa90;
+  --text-accent:    #008844;
+
+  --border:         rgba(0, 136, 68, 0.15);
+  --border-strong:  rgba(0, 136, 68, 0.35);
+  --border-subtle:  rgba(0, 0, 0, 0.06);
+
+  --bull:           #007a38;
+  --bull-bg:        rgba(0, 136, 68, 0.08);
+  --bear:           #cc2244;
+  --bear-bg:        rgba(204, 34, 68, 0.07);
+  --neutral:        #cc7700;
+  --neutral-bg:     rgba(204, 119, 0, 0.08);
+
+  --chart-line:     #008844;
+  --chart-fill:     rgba(0, 136, 68, 0.07);
+  --chart-grid:     rgba(0, 136, 68, 0.08);
+  --chart-tooltip:  #ffffff;
+
+  --scrollbar-track: #e4f0eb;
+  --scrollbar-thumb: rgba(0, 136, 68, 0.25);
+}
+
+/* ─── Reset & Base ──────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Syne', sans-serif;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100vh;
+  transition: background-color 0.35s ease, color 0.35s ease;
+  overflow-x: hidden;
+}
+
+/* Font monospace pour les chiffres */
+.mono {
+  font-family: 'Space Mono', monospace;
+}
+
+/* ─── Scrollbar personnalisée ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-dim);
+}
+
+/* ─── Sélection de texte ────────────────────────────────────────────────── */
+::selection {
+  background: var(--accent-glow);
+  color: var(--text-accent);
+}
+
+/* ─── Composants de base ────────────────────────────────────────────────── */
+
+/* Card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-card-hover);
+}
+
+.card-glow {
+  box-shadow: 0 0 0 1px var(--border), 0 4px 24px var(--accent-glow);
+}
+
+/* Badges direction */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.badge-bull {
+  background: var(--bull-bg);
+  color: var(--bull);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+}
+
+.badge-bear {
+  background: var(--bear-bg);
+  color: var(--bear);
+  border: 1px solid rgba(255, 68, 102, 0.2);
+}
+
+.badge-neutral {
+  background: var(--neutral-bg);
+  color: var(--neutral);
+  border: 1px solid rgba(255, 165, 32, 0.2);
+}
+
+/* Label de section */
+.section-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+/* Valeur principale */
+.value-primary {
+  font-family: 'Space Mono', monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.value-accent {
+  color: var(--text-accent);
+}
+
+/* Ligne de séparation */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 1rem 0;
+}
+
+/* ─── Animations ────────────────────────────────────────────────────────── */
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50%       { box-shadow: 0 0 0 8px transparent; }
+}
+
+@keyframes ticker-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scan-line {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@keyframes price-update {
+  0%   { background: var(--accent-glow); }
+  100% { background: transparent; }
+}
+
+.animate-fade-in   { animation: fade-in 0.4s ease forwards; }
+.animate-slide-in  { animation: slide-in-right 0.4s ease forwards; }
+.animate-pulse-glow { animation: pulse-glow 2s ease infinite; }
+
+/* Stagger pour les enfants */
+.stagger > *:nth-child(1) { animation-delay: 0ms;  }
+.stagger > *:nth-child(2) { animation-delay: 60ms; }
+.stagger > *:nth-child(3) { animation-delay: 120ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 240ms; }
+.stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+/* Prix en temps réel — flash au changement */
+.price-flash-up {
+  animation: flash-up 0.6s ease forwards;
+}
+.price-flash-down {
+  animation: flash-down 0.6s ease forwards;
+}
+
+@keyframes flash-up {
+  0%   { color: var(--text-primary); background: transparent; }
+  30%  { color: var(--bull); background: var(--bull-bg); border-radius: 4px; }
+  100% { color: var(--text-primary); background: transparent; }
+}
+
+@keyframes flash-down {
+  0%   { color: var(--text-primary); background: transparent; }
+  30%  { color: var(--bear); background: var(--bear-bg); border-radius: 4px; }
+  100% { color: var(--text-primary); background: transparent; }
+}
+
+/* Indicateur live pulsant */
+.live-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: ticker-pulse 1.4s ease-in-out infinite;
+  box-shadow: 0 0 6px var(--accent);
+}
+
+/* Ligne de scan (effet terminal) */
+.scan-line::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+  animation: scan-line 6s linear infinite;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* ─── Barre de progression ──────────────────────────────────────────────── */
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* ─── Boutons ───────────────────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.25rem;
+  background: var(--accent);
+  color: #050a0e;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.btn-ghost:hover {
+  color: var(--text-accent);
+  border-color: var(--border-strong);
+  background: var(--accent-subtle);
+}
+
+.btn-active {
+  background: var(--accent-subtle) !important;
+  color: var(--text-accent) !important;
+  border-color: var(--border-strong) !important;
+}
+
+/* ─── Grille principale ─────────────────────────────────────────────────── */
+.app-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .app-grid {
+    grid-template-columns: 1fr 380px;
+    gap: 1.25rem;
+  }
+}
+
+/* ─── Tooltips ──────────────────────────────────────────────────────────── */
+.tooltip-container {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip-content {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 100;
+}
+
+.tooltip-container:hover .tooltip-content {
+  opacity: 1;
+}
+
+/* ─── Loading skeleton ──────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-card) 25%,
+    var(--bg-card-hover) 50%,
+    var(--bg-card) 75%
+  );
+  background-size: 200% auto;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 6px;
+}
+
+/* ─── Effet de fond — grille terminal ───────────────────────────────────── */
+.terminal-bg {
+  background-image:
+    linear-gradient(var(--chart-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--chart-grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ─── Responsive text ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .value-primary { font-size: 1.5rem; }
+}

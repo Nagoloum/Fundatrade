@@ -1,49 +1,87 @@
 import { NextResponse } from "next/server";
+import { predictCrypto } from "@/lib/prediction/cryptoPredictor";
+import { predictGold }   from "@/lib/prediction/goldPrediction";
+import type { Asset, Timeframe, MacroData } from "@/types";
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const { asset, price, change24h, fedRate, inflation, history } = body;
+  try {
+    const body = await req.json();
 
-  // Algorithme de prédiction fondamentale
-  let score = 0; // -100 à +100
-  const reasons: string[] = [];
+    const {
+      asset,
+      price,
+      change24h,
+      history,
+      macro,
+      timeframe = "1J",
+      marketCap,
+      volume24h,
+    }: {
+      asset:      Asset;
+      price:      number;
+      change24h:  number;
+      history:    { date: string; price: number }[];
+      macro:      MacroData;
+      timeframe:  Timeframe;
+      marketCap?: number;
+      volume24h?: number;
+    } = body;
 
-  // Signal momentum (trend 7j)
-  if (history && history.length >= 7) {
-    const recent = history.slice(-7);
-    const startPrice = recent[0].price;
-    const trend = ((price - startPrice) / startPrice) * 100;
-    if (trend > 3) { score += 20; reasons.push("Tendance haussière sur 7 jours (+${trend.toFixed(1)}%)"); }
-    else if (trend < -3) { score -= 20; reasons.push(`Tendance baissière sur 7 jours (${trend.toFixed(1)}%)`); }
+    // ── Validation ────────────────────────────────────────────────────────
+    if (!asset || !price || !history || !macro) {
+      return NextResponse.json(
+        { error: "Paramètres manquants : asset, price, history, macro requis" },
+        { status: 400 }
+      );
+    }
+
+    if (price <= 0) {
+      return NextResponse.json(
+        { error: "Le prix doit être positif" },
+        { status: 400 }
+      );
+    }
+
+    if (!Array.isArray(history) || history.length < 3) {
+      return NextResponse.json(
+        { error: "L'historique de prix doit contenir au moins 3 points" },
+        { status: 400 }
+      );
+    }
+
+    // ── Prédiction selon l'actif ──────────────────────────────────────────
+    let prediction;
+
+    if (asset === "XAUUSD") {
+      prediction = predictGold({
+        price,
+        change24h,
+        history,
+        macro,
+        timeframe,
+      });
+    } else {
+      prediction = predictCrypto({
+        price,
+        change24h,
+        marketCap,
+        volume24h,
+        history,
+        macro,
+        timeframe,
+      });
+    }
+
+    return NextResponse.json({
+      ...prediction,
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error: any) {
+    console.error("[API/predict]", error);
+    return NextResponse.json(
+      { error: `Erreur lors du calcul de la prédiction : ${error.message}` },
+      { status: 500 }
+    );
   }
-
-  // Signal macro (taux Fed)
-  if (fedRate !== undefined) {
-    if (fedRate < 3) { score += 15; reasons.push("Taux Fed bas → favorable aux actifs risqués et à l'or"); }
-    else if (fedRate > 5) { score -= 15; reasons.push("Taux Fed élevés → pression baissière"); }
-  }
-
-  // Signal inflation
-  if (inflation !== undefined) {
-    if (asset === "XAUUSD" && inflation > 3) { score += 15; reasons.push("Inflation élevée → l'or est une valeur refuge"); }
-    if ((asset === "BTC" || asset === "ETH") && inflation > 5) { score += 10; reasons.push("Inflation forte → demande de hedging crypto"); }
-  }
-
-  // Signal variation 24h
-  if (change24h > 2) { score += 10; reasons.push("Forte hausse 24h → momentum positif"); }
-  else if (change24h < -2) { score -= 10; reasons.push("Forte baisse 24h → pression vendeuse"); }
-
-  // Calcul direction + prix cible
-  const direction = score > 15 ? "BULLISH" : score < -15 ? "BEARISH" : "NEUTRAL";
-  const multiplier = score > 0 ? 1 + (score / 500) : 1 + (score / 500);
-  const targetPrice = price * multiplier;
-  const confidence = Math.min(90, Math.abs(score) + 40);
-
-  return NextResponse.json({
-    direction,
-    targetPrice: parseFloat(targetPrice.toFixed(2)),
-    confidence: parseFloat(confidence.toFixed(1)),
-    reasoning: reasons,
-    timeframe: "7-14 jours",
-  });
 }

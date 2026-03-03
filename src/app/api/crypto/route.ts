@@ -1,39 +1,93 @@
 import { NextResponse } from "next/server";
 
-const COIN_MAP: Record<string, string> = {
-  BTC: "bitcoin",
-  ETH: "ethereum",
-  SOL: "solana",
+// ═══════════════════════════════════════════════════════════════════════════
+// BINANCE API — Gratuit, sans clé, temps réel, klines natifs 4H/1J/1W
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SYMBOL_MAP: Record<string, string> = {
+  BTC: "BTCUSDT",
+  ETH: "ETHUSDT",
+  SOL: "SOLUSDT",
 };
+
+const INTERVAL_MAP: Record<string, string> = {
+  "4H": "4h",
+  "1J": "1d",
+  "1W": "1w",
+};
+
+// 60 points minimum pour RSI(14), MACD(26), BB(20)
+const LIMIT_MAP: Record<string, number> = {
+  "4H": 60,
+  "1J": 60,
+  "1W": 52,
+};
+
+const NAME_MAP: Record<string, string> = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum",
+  SOL: "Solana",
+};
+
+const BINANCE = "https://api.binance.com/api/v3";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const symbol = searchParams.get("symbol") || "BTC";
-  const coinId = COIN_MAP[symbol];
+  const symbol    = searchParams.get("symbol") || "BTC";
+  const timeframe = searchParams.get("timeframe") || "1J";
+  const pair      = SYMBOL_MAP[symbol];
 
-  if (!coinId) return NextResponse.json({ error: "Invalid symbol" }, { status: 400 });
+  if (!pair) {
+    return NextResponse.json({ error: `Symbole invalide : ${symbol}` }, { status: 400 });
+  }
 
-  const [coinRes, historyRes] = await Promise.all([
-    fetch(`https://api.coingecko.com/api/v3/coins/${coinId}`),
-    fetch(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=30`)
-  ]);
+  const interval = INTERVAL_MAP[timeframe] ?? "1d";
+  const limit    = LIMIT_MAP[timeframe] ?? 60;
 
-  const coin = await coinRes.json();
-  const history = await historyRes.json();
+  try {
+    const [tickerRes, klineRes, priceRes] = await Promise.all([
+      fetch(`${BINANCE}/ticker/24hr?symbol=${pair}`, { next: { revalidate: 15 } }),
+      fetch(`${BINANCE}/klines?symbol=${pair}&interval=${interval}&limit=${limit}`, { next: { revalidate: 20 } }),
+      fetch(`${BINANCE}/ticker/price?symbol=${pair}`, { next: { revalidate: 5 } }),
+    ]);
 
-  return NextResponse.json({
-    name: coin.name,
-    price: coin.market_data.current_price.usd,
-    change24h: coin.market_data.price_change_percentage_24h,
-    high24h: coin.market_data.high_24h.usd,
-    low24h: coin.market_data.low_24h.usd,
-    marketCap: coin.market_data.market_cap.usd,
-    volume24h: coin.market_data.total_volume.usd,
-    circulatingSupply: coin.market_data.circulating_supply,
-    fullyDilutedValuation: coin.market_data.fully_diluted_valuation.usd,
-    history: history.prices.map(([timestamp, price]: number[]) => ({
-      date: new Date(timestamp).toISOString().split("T")[0],
-      price,
-    })),
-  });
+    if (!tickerRes.ok) throw new Error(`Binance ticker error ${tickerRes.status}`);
+    if (!klineRes.ok)  throw new Error(`Binance klines error ${klineRes.status}`);
+
+    const [ticker, klines, priceData] = await Promise.all([
+      tickerRes.json(),
+      klineRes.json(),
+      priceRes.json(),
+    ]);
+
+    // Klines : [openTime, open, high, low, close, volume, ...]
+    const history = (klines as any[][]).map((k) => ({
+      date:   new Date(k[0]).toISOString(),
+      price:  parseFloat(parseFloat(k[4]).toFixed(4)),
+      volume: parseFloat(parseFloat(k[5]).toFixed(2)),
+    }));
+
+    const currentPrice = parseFloat(priceData.price);
+
+    return NextResponse.json({
+      name:                  NAME_MAP[symbol] || symbol,
+      price:                 currentPrice,
+      change24h:             parseFloat(parseFloat(ticker.priceChangePercent).toFixed(3)),
+      high24h:               parseFloat(ticker.highPrice),
+      low24h:                parseFloat(ticker.lowPrice),
+      volume24h:             parseFloat(ticker.quoteVolume),
+      marketCap:             undefined,
+      circulatingSupply:     undefined,
+      fullyDilutedValuation: undefined,
+      history,
+      lastUpdated:           new Date().toISOString(),
+    });
+
+  } catch (error: any) {
+    console.error("[API/crypto Binance]", error.message);
+    return NextResponse.json(
+      { error: `Erreur Binance : ${error.message}` },
+      { status: 500 }
+    );
+  }
 }

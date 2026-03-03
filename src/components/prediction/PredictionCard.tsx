@@ -1,46 +1,244 @@
-import { Prediction } from "@/types";
+"use client";
 
-export default function PredictionCard({ prediction, currentPrice }: { prediction: Prediction; currentPrice: number }) {
-  const colorMap = {
-    BULLISH: "text-green-400",
-    BEARISH: "text-red-400",
-    NEUTRAL: "text-yellow-400",
-  };
+import type { Prediction, Timeframe } from "@/types";
+import SignalBadge from "../strategy/SignalBadge";
 
-  const priceDiff = ((prediction.targetPrice - currentPrice) / currentPrice * 100).toFixed(2);
+interface PredictionCardProps {
+  prediction: Prediction;
+  currentPrice: number;
+}
+
+function ScoreBar({ label, score, tooltip }: { label: string; score: number; tooltip: string }) {
+  const color =
+    score >= 60 ? "var(--bull)" :
+    score <= 40 ? "var(--bear)" :
+    "var(--neutral)";
 
   return (
-    <div className="bg-gray-900 border border-violet-800 rounded-xl p-5">
-      <h3 className="text-violet-400 font-semibold mb-3">🧠 Prédiction IA</h3>
+    <div style={{ marginBottom: "0.5rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+        <span
+          style={{ fontSize: "0.62rem", color: "var(--text-secondary)" }}
+          title={tooltip}
+        >
+          {label}
+        </span>
+        <span
+          style={{
+            fontFamily: "var(--font-mono), monospace",
+            fontSize: "0.65rem",
+            fontWeight: 700,
+            color,
+          }}
+        >
+          {score}/100
+        </span>
+      </div>
+      <div className="progress-bar">
+        <div
+          className="progress-fill"
+          style={{
+            width: `${score}%`,
+            background: `linear-gradient(90deg, ${score >= 60 ? "#00cc6a, #00ff88" : score <= 40 ? "#cc2244, #ff4466" : "#cc7700, #ffa520"})`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
 
-      <div className={`text-2xl font-bold mb-1 ${colorMap[prediction.direction]}`}>
-        {prediction.direction}
+const TF_LABEL: Record<Timeframe, string> = {
+  "4H": "Court terme (4H)",
+  "1J": "Moyen terme (1 Jour)",
+  "1W": "Long terme (1 Semaine)",
+};
+
+export default function PredictionCard({ prediction, currentPrice }: PredictionCardProps) {
+  const priceDiffPct = ((prediction.targetPrice - currentPrice) / currentPrice * 100).toFixed(2);
+  const stopDiffPct  = ((prediction.stopLoss - currentPrice) / currentPrice * 100).toFixed(2);
+  const isPositive   = parseFloat(priceDiffPct) >= 0;
+
+  const formatPrice = (p: number) =>
+    p.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return (
+    <div
+      className="card"
+      style={{
+        borderColor: prediction.direction === "BULLISH"
+          ? "rgba(0,255,136,0.25)"
+          : prediction.direction === "BEARISH"
+          ? "rgba(255,68,102,0.25)"
+          : "rgba(255,165,32,0.25)",
+      }}
+    >
+      {/* En-tête */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+        <div>
+          <div className="section-label">Prédiction IA</div>
+          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+            {TF_LABEL[prediction.timeframe]}
+          </div>
+        </div>
+        <SignalBadge direction={prediction.direction} size="lg" animated />
       </div>
 
-      <div className="text-gray-300 mb-1">
-        Prix cible : <span className="text-white font-bold">${prediction.targetPrice.toLocaleString()}</span>
-        <span className={`ml-2 text-sm ${parseFloat(priceDiff) >= 0 ? "text-green-400" : "text-red-400"}`}>
-          ({priceDiff}%)
+      {/* Prix cible + Stop Loss */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "0.5rem",
+          marginBottom: "1rem",
+        }}
+      >
+        {/* Prix cible */}
+        <div
+          style={{
+            padding: "0.75rem",
+            background: "var(--bull-bg)",
+            border: "1px solid rgba(0,255,136,0.15)",
+            borderRadius: "10px",
+          }}
+        >
+          <div style={{ fontSize: "0.58rem", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}>
+            Objectif
+          </div>
+          <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.95rem", fontWeight: 700, color: "var(--bull)" }}>
+            ${formatPrice(prediction.targetPrice)}
+          </div>
+          <div style={{ fontSize: "0.62rem", color: isPositive ? "var(--bull)" : "var(--bear)", marginTop: "2px" }}>
+            {isPositive ? "+" : ""}{priceDiffPct}%
+          </div>
+        </div>
+
+        {/* Stop Loss */}
+        <div
+          style={{
+            padding: "0.75rem",
+            background: "var(--bear-bg)",
+            border: "1px solid rgba(255,68,102,0.15)",
+            borderRadius: "10px",
+          }}
+        >
+          <div style={{ fontSize: "0.58rem", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}>
+            Stop Loss
+          </div>
+          <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.95rem", fontWeight: 700, color: "var(--bear)" }}>
+            ${formatPrice(prediction.stopLoss)}
+          </div>
+          <div style={{ fontSize: "0.62rem", color: "var(--bear)", marginTop: "2px" }}>
+            {stopDiffPct}%
+          </div>
+        </div>
+      </div>
+
+      {/* Risk/Reward */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "0.5rem 0.75rem",
+          background: "var(--bg-surface)",
+          borderRadius: "8px",
+          border: "1px solid var(--border-subtle)",
+          marginBottom: "1rem",
+        }}
+      >
+        <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+          Ratio Risque/Récompense
+        </span>
+        <span
+          style={{
+            fontFamily: "var(--font-mono), monospace",
+            fontSize: "0.85rem",
+            fontWeight: 700,
+            color: prediction.riskRewardRatio >= 2 ? "var(--bull)" : prediction.riskRewardRatio >= 1 ? "var(--neutral)" : "var(--bear)",
+          }}
+        >
+          1 : {prediction.riskRewardRatio.toFixed(2)}
         </span>
       </div>
 
-      <div className="mb-4">
-        <div className="text-gray-400 text-sm mb-1">Confiance : {prediction.confidence}%</div>
-        <div className="w-full bg-gray-700 rounded-full h-2">
+      {/* Scores */}
+      <div style={{ marginBottom: "1rem" }}>
+        <div style={{ fontSize: "0.62rem", color: "var(--text-muted)", marginBottom: "0.5rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          Scores d`&apos`analyse
+        </div>
+        <ScoreBar
+          label="Score fondamental"
+          score={prediction.fundamentalScore}
+          tooltip="Basé sur les données macro (Fed, inflation, DXY) et les fondamentaux de l'actif"
+        />
+        <ScoreBar
+          label="Score technique"
+          score={prediction.technicalScore}
+          tooltip="Basé sur RSI, MACD, Price Action et SMC"
+        />
+        <ScoreBar
+          label="Score global (combiné)"
+          score={prediction.globalScore}
+          tooltip="Combinaison pondérée des scores fondamental (40%) et technique (60%)"
+        />
+      </div>
+
+      {/* Confiance */}
+      <div style={{ marginBottom: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+          <span style={{ fontSize: "0.65rem", color: "var(--text-secondary)" }}>Niveau de confiance</span>
+          <span
+            style={{
+              fontFamily: "var(--font-mono), monospace",
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              color: prediction.confidence >= 70 ? "var(--bull)" : prediction.confidence >= 50 ? "var(--neutral)" : "var(--bear)",
+            }}
+          >
+            {prediction.confidence}%
+          </span>
+        </div>
+        <div className="progress-bar">
           <div
-            className="bg-violet-500 h-2 rounded-full transition-all"
-            style={{ width: `${prediction.confidence}%` }}
+            className="progress-fill"
+            style={{
+              width: `${prediction.confidence}%`,
+              background: prediction.confidence >= 70
+                ? "linear-gradient(90deg, #00cc6a, #00ff88)"
+                : prediction.confidence >= 50
+                ? "linear-gradient(90deg, #cc7700, #ffa520)"
+                : "linear-gradient(90deg, #cc2244, #ff4466)",
+            }}
           />
         </div>
       </div>
 
-      <div className="text-xs text-gray-500">⏱ Horizon : {prediction.timeframe}</div>
-
-      <div className="mt-3 space-y-1">
-        {prediction.reasoning.map((r: string, i: number) => (
-          <div key={i} className="text-xs text-gray-400">• {r}</div>
-        ))}
-      </div>
+      {/* Raisonnement */}
+      {prediction.reasoning.length > 0 && (
+        <div>
+          <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.4rem" }}>
+            Facteurs déterminants
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+            {prediction.reasoning.map((reason, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  gap: "0.4rem",
+                  alignItems: "flex-start",
+                  fontSize: "0.65rem",
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.4,
+                }}
+              >
+                <span style={{ color: "var(--text-accent)", marginTop: "1px", flexShrink: 0 }}>›</span>
+                {reason}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
