@@ -1,11 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
-
 /* ═══════════════════════════════════════════════════════════════════════════
    FUNDATRADE — Design System
    Terminal financier pro : vert emeraude, fond quasi-noir, monospace sharp
 ═══════════════════════════════════════════════════════════════════════════ */
-
 
 /* ─── Variables CSS — Thème sombre (défaut) ─────────────────────────────── */
 :root,
@@ -446,4 +444,37 @@ body {
 /* ─── Responsive text ───────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .value-primary { font-size: 1.5rem; }
+}
+
+/* ─── Responsive global — mobile-first fixes ───────────────────────────── */
+
+/* Empêcher le scroll horizontal sur tous les écrans */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Cards compactées sur mobile */
+@media (max-width: 640px) {
+  .card {
+    padding: 0.85rem 0.9rem;
+    border-radius: 10px;
+  }
+}
+
+/* Très petits écrans : typographie réduite */
+@media (max-width: 380px) {
+  html { font-size: 14px; }
+  .section-label { font-size: 0.58rem; }
+}
+
+/* Touch targets minimum 44px sur mobile */
+@media (max-width: 768px) {
+  button { min-height: 36px; }
+}
+
+/* Viewport meta via CSS (complément au HTML) */
+@media (max-width: 480px) {
+  .progress-bar { height: 3px; }
+  .live-dot { width: 6px; height: 6px; }
 }

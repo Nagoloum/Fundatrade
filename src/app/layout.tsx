@@ -21,6 +21,11 @@ export const metadata: Metadata = {
   description:
     "Plateforme d'analyse avancée pour crypto et or : fondamentaux, indicateurs techniques, prédiction IA en temps réel.",
   keywords: ["trading", "analyse fondamentale", "bitcoin", "crypto", "or", "XAUUSD", "RSI", "MACD", "SMC"],
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  },
   openGraph: {
     title: "Fundatrade",
     description: "Analyse fondamentale & technique pour traders",
