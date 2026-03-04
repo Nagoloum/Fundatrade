@@ -17,7 +17,7 @@ import {
   fetchCrypto, fetchGold, fetchMacro, fetchNews, fetchPrediction,
 } from "@/lib/api/client";
 
-const PRICE_REFRESH_MS = 30_000;
+const PRICE_REFRESH_MS = 10_000; //
 const MACRO_REFRESH_MS = 300_000;
 const NEWS_REFRESH_MS  = 300_000;
 
