@@ -81,6 +81,7 @@ export interface DerivativesData {
     longs: number;
     shorts: number;
   };
+  signals?: string[];            // Signaux textuels interprétatifs
 }
 
 // ─── Corrélations ────────────────────────────────────────────────────────────

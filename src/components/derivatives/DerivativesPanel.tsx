@@ -81,7 +81,7 @@ export default function DerivativesPanel({ data, asset }: DerivativesPanelProps)
         {/* Signaux dérivés */}
         {data.signals && data.signals.length > 0 && (
           <div className="ft-deriv-signals">
-            {(data.signals as string[]).map((s, i) => (
+            {data.signals.map((s, i) => (
               <div key={i} className="ft-deriv-signal">
                 <span style={{ color: "var(--text-accent)", flexShrink: 0 }}>›</span>{s}
               </div>
