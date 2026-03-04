@@ -236,7 +236,7 @@ export function calculateIchimoku(history: HistoryPoint[]): IchimokuData {
   if (pricePosition === "above_cloud") bullPoints += 3;
   else if (pricePosition === "below_cloud") bearPoints += 3;
   if (cloudColor === "bullish") bullPoints++; else bearPoints++;
-  if (chikou > prices[n - 27] ?? 0) bullPoints++; else bearPoints++;
+  if (chikou > (prices[n - 27] ?? 0)) bullPoints++; else bearPoints++;
 
   const signal: "BULLISH" | "BEARISH" | "NEUTRAL" =
     bullPoints >= 5 ? "BULLISH" : bearPoints >= 5 ? "BEARISH" : "NEUTRAL";
