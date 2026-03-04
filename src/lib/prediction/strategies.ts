@@ -331,3 +331,126 @@ export function analyzeMACD(
     timeframe,
   };
 }
+
+// ─── NOUVEAU : Analyse Ichimoku ──────────────────────────────────────────────
+export function analyzeIchimoku(
+  indicators: TechnicalIndicators,
+  currentPrice: number,
+  timeframe: Timeframe
+): StrategyAnalysis {
+  const ichi = indicators.ichimoku;
+  const details: string[] = [];
+  let score = 0;
+
+  // Position par rapport au nuage
+  if (ichi.pricePosition === "above_cloud") {
+    score += 25;
+    details.push(`Prix au-dessus du nuage Ichimoku ${ichi.cloudColor === "bullish" ? "haussier" : "baissier"} — tendance dominante haussière`);
+  } else if (ichi.pricePosition === "below_cloud") {
+    score -= 25;
+    details.push(`Prix sous le nuage Ichimoku — tendance dominante baissière, résistance forte`);
+  } else {
+    details.push(`Prix dans le nuage Ichimoku — zone d'incertitude, volatilité probable`);
+  }
+
+  // Croisement TK (Tenkan/Kijun)
+  if (ichi.tenkan > ichi.kijun) {
+    score += 15;
+    details.push(`Tenkan (${ichi.tenkan.toFixed(2)}) au-dessus de Kijun (${ichi.kijun.toFixed(2)}) — momentum haussier court terme`);
+  } else {
+    score -= 15;
+    details.push(`Tenkan sous Kijun — momentum baissier, pas d'entrée recommandée`);
+  }
+
+  // Couleur du nuage (tendance future)
+  if (ichi.cloudColor === "bullish") {
+    score += 10;
+    details.push("Nuage futur haussier (Senkou A > Senkou B) — support futur solide");
+  } else {
+    score -= 10;
+    details.push("Nuage futur baissier (Senkou B > Senkou A) — résistance future");
+  }
+
+  // Chikou (lagging span)
+  const chikouAbove = ichi.chikou > currentPrice * 0.98;
+  if (chikouAbove) {
+    score += 8;
+    details.push("Chikou Span au-dessus du prix passé — confirmation haussière triple");
+  } else {
+    score -= 8;
+  }
+
+  const direction: Direction = score > 20 ? "BULLISH" : score < -20 ? "BEARISH" : "NEUTRAL";
+  const confidence = Math.min(88, Math.max(35, 45 + Math.abs(score) * 0.7));
+
+  return {
+    name: "Ichimoku",
+    direction,
+    signal:
+      ichi.pricePosition === "above_cloud" ? `Au-dessus du nuage ${ichi.cloudColor === "bullish" ? "haussier" : ""} — tendance confirmée` :
+      ichi.pricePosition === "below_cloud" ? "Sous le nuage — bearish structurel" :
+      "Dans le nuage — zone de transition",
+    confidence,
+    details,
+    timeframe,
+  };
+}
+
+// ─── NOUVEAU : Analyse ADX ───────────────────────────────────────────────────
+export function analyzeADX(
+  indicators: TechnicalIndicators,
+  timeframe: Timeframe
+): StrategyAnalysis {
+  const adx = indicators.adx;
+  const details: string[] = [];
+  let score = 0;
+
+  // Force de la tendance
+  if (adx.adx > 40) {
+    details.push(`ADX très fort (${adx.adx}) — tendance puissante et fiable, suivre la direction`);
+    score += adx.trend === "BULLISH" ? 30 : -30;
+  } else if (adx.adx > 25) {
+    details.push(`ADX fort (${adx.adx}) — tendance confirmée, momentum solide`);
+    score += adx.trend === "BULLISH" ? 20 : -20;
+  } else if (adx.adx < 20) {
+    details.push(`ADX faible (${adx.adx}) — pas de tendance claire, marché en range — RSI et oscillateurs plus fiables`);
+  } else {
+    details.push(`ADX modéré (${adx.adx}) — tendance émergente, surveiller la confirmation`);
+  }
+
+  // +DI vs -DI
+  if (adx.plusDI > adx.minusDI) {
+    score += 10;
+    details.push(`+DI (${adx.plusDI}) > -DI (${adx.minusDI}) — pression achetrice dominante`);
+  } else {
+    score -= 10;
+    details.push(`-DI (${adx.minusDI}) > +DI (${adx.plusDI}) — pression vendeuse dominante`);
+  }
+
+  // Régime de marché
+  const regimeLabels: Record<string, string> = {
+    trending_bull: "Tendance haussière active",
+    trending_bear: "Tendance baissière active",
+    ranging:       "Marché en range — oscillateurs privilégiés",
+    volatile:      "Marché volatil — prudence, positions réduites",
+    unknown:       "Régime indéterminé",
+  };
+  details.push(`Régime : ${regimeLabels[adx.regime] ?? adx.regime}`);
+
+  const direction: Direction = score > 15 ? "BULLISH" : score < -15 ? "BEARISH" : "NEUTRAL";
+  const confidence = Math.min(85, Math.max(30, 40 + Math.abs(adx.adx - 20) * 0.8));
+
+  return {
+    name: "ADX",
+    direction,
+    signal:
+      adx.regime === "ranging"       ? `Range détecté (ADX ${adx.adx}) — oscillateurs privilégiés` :
+      adx.regime === "trending_bull" ? `Tendance haussière forte (ADX ${adx.adx})` :
+      adx.regime === "trending_bear" ? `Tendance baissière forte (ADX ${adx.adx})` :
+      adx.regime === "volatile"      ? `Marché volatil (ADX ${adx.adx}) — prudence` :
+      `ADX ${adx.adx} — tendance ${adx.trend.toLowerCase()}`,
+    confidence,
+    details,
+    timeframe,
+  };
+}

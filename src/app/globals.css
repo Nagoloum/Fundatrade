@@ -1,9 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
 /* ═══════════════════════════════════════════════════════════════════════════
    FUNDATRADE — Design System
    Terminal financier pro : vert emeraude, fond quasi-noir, monospace sharp
 ═══════════════════════════════════════════════════════════════════════════ */
+
 
 /* ─── Variables CSS — Thème sombre (défaut) ─────────────────────────────── */
 :root,
@@ -477,4 +479,60 @@ html, body {
 @media (max-width: 480px) {
   .progress-bar { height: 3px; }
   .live-dot { width: 6px; height: 6px; }
+}
+
+/* ─── Outils — Toolbar ──────────────────────────────────────────────────── */
+.ft-tab-sm {
+  padding: 0.22rem 0.6rem !important;
+  font-size: 0.62rem !important;
+  min-height: unset !important;
+  border-radius: 6px !important;
+}
+
+/* ─── Modales journal/alertes/backtest ──────────────────────────────────── */
+.ft-journal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(5, 10, 14, 0.85);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+}
+
+.ft-journal-modal {
+  position: fixed; inset: 0; margin: auto;
+  width: min(680px, 96vw);
+  max-height: 88vh;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  z-index: 101;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px var(--border);
+}
+
+/* ─── Form inputs globaux (journal, alertes) ────────────────────────────── */
+.ft-journal-form-group input,
+.ft-journal-form-group select,
+.ft-journal-form-group textarea {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.4rem 0.6rem;
+  color: var(--text-primary);
+  font-family: 'Syne', sans-serif;
+  font-size: 0.72rem;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.ft-journal-form-group input:focus,
+.ft-journal-form-group select:focus,
+.ft-journal-form-group textarea:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+select option {
+  background: var(--bg-card);
+  color: var(--text-primary);
 }

@@ -1,44 +1,31 @@
-import type { MarketData, MacroData, NewsItem, Prediction, Asset, Timeframe } from "@/types";
-
-// ═══════════════════════════════════════════════════════════════════════════
-// CLIENT API — Fonctions de fetch côté client vers les routes Next.js
-// ═══════════════════════════════════════════════════════════════════════════
+import type {
+  MarketData, MacroData, NewsItem, Prediction, Asset, Timeframe,
+  SentimentData, DerivativesData,
+} from "@/types";
 
 async function safeFetch<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, options);
+  const res  = await fetch(url, options);
   const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.error || `Erreur HTTP ${res.status}`);
-  }
+  if (!res.ok) throw new Error(data.error || `Erreur HTTP ${res.status}`);
   return data as T;
 }
 
-export async function fetchCrypto(symbol: Asset, timeframe: Timeframe): Promise<MarketData> {
-  return safeFetch<MarketData>(`/api/crypto?symbol=${symbol}&timeframe=${timeframe}`);
-}
-
-export async function fetchGold(timeframe: Timeframe): Promise<MarketData> {
-  return safeFetch<MarketData>(`/api/gold?timeframe=${timeframe}`);
-}
-
-export async function fetchMacro(): Promise<MacroData> {
-  return safeFetch<MacroData>("/api/macro");
-}
-
-export async function fetchNews(asset: Asset): Promise<NewsItem[]> {
-  return safeFetch<NewsItem[]>(`/api/news?asset=${asset}`);
-}
+export const fetchCrypto      = (s: Asset, tf: Timeframe) => safeFetch<MarketData>(`/api/crypto?symbol=${s}&timeframe=${tf}`);
+export const fetchGold        = (tf: Timeframe)           => safeFetch<MarketData>(`/api/gold?timeframe=${tf}`);
+export const fetchMacro       = ()                         => safeFetch<MacroData>("/api/macro");
+export const fetchNews        = (a: Asset)                => safeFetch<NewsItem[]>(`/api/news?asset=${a}`);
+export const fetchSentiment   = (a: Asset)                => safeFetch<SentimentData>(`/api/sentiment?asset=${a}`);
+export const fetchDerivatives = (a: Asset)                => safeFetch<DerivativesData>(`/api/derivatives?asset=${a}`);
 
 export async function fetchPrediction(params: {
-  asset: Asset;
-  price: number;
-  change24h: number;
+  asset: Asset; price: number; change24h: number;
   history: { date: string; price: number }[];
-  macro: MacroData;
-  timeframe: Timeframe;
-  marketCap?: number;
-  volume24h?: number;
+  macro: MacroData; timeframe: Timeframe;
+  marketCap?: number; volume24h?: number;
+  sentiment?: SentimentData;
+  history4H?: { date: string; price: number }[];
+  history1J?: { date: string; price: number }[];
+  history1W?: { date: string; price: number }[];
 }): Promise<Prediction> {
   return safeFetch<Prediction>("/api/predict", {
     method: "POST",

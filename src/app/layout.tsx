@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Mono, Syne } from "next/font/google";
 import "./globals.css";
 
@@ -21,17 +21,18 @@ export const metadata: Metadata = {
   description:
     "Plateforme d'analyse avancée pour crypto et or : fondamentaux, indicateurs techniques, prédiction IA en temps réel.",
   keywords: ["trading", "analyse fondamentale", "bitcoin", "crypto", "or", "XAUUSD", "RSI", "MACD", "SMC"],
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-  },
   openGraph: {
     title: "Fundatrade",
     description: "Analyse fondamentale & technique pour traders",
     type: "website",
   },
 };
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+}
 
 export default function RootLayout({
   children,

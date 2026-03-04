@@ -3,6 +3,7 @@ export type Timeframe = "4H" | "1J" | "1W";
 export type Theme = "dark" | "light";
 export type Direction = "BULLISH" | "BEARISH" | "NEUTRAL";
 export type Sentiment = "positive" | "negative" | "neutral";
+export type MarketRegime = "trending_bull" | "trending_bear" | "ranging" | "volatile" | "unknown";
 
 // ─── Données de marché ───────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ export interface MarketData {
   fullyDilutedValuation?: number;
   dominance?: number;
   history: HistoryPoint[];
-  lastUpdated: string; // ISO timestamp
+  lastUpdated: string;
 }
 
 export interface HistoryPoint {
@@ -35,8 +36,8 @@ export interface CryptoFundamentals {
   circulatingSupply: number;
   fullyDilutedValuation?: number;
   dominance?: number;
-  volumeToMarketCapRatio?: number; // Volume/MCap ratio
-  nvtSignal?: number;              // Network Value to Transactions
+  volumeToMarketCapRatio?: number;
+  nvtSignal?: number;
 }
 
 // ─── Données macro ───────────────────────────────────────────────────────────
@@ -46,20 +47,90 @@ export interface MacroData {
   inflation: number;
   m2Supply?: number;
   dxy?: number;
-  yieldCurve?: number; // 10Y - 2Y spread
+  yieldCurve?: number;
   lastUpdated?: string;
 }
 
-// ─── Indicateurs techniques ──────────────────────────────────────────────────
+// ─── Sentiment & Fear/Greed ──────────────────────────────────────────────────
+
+export interface FearGreedData {
+  value: number;           // 0–100
+  label: string;           // "Extreme Fear" | "Fear" | "Neutral" | "Greed" | "Extreme Greed"
+  previousValue?: number;
+  previousLabel?: string;
+  timestamp: string;
+}
+
+export interface SentimentData {
+  fearGreed?: FearGreedData;
+  cryptoPanicScore?: number;    // -1 à +1 agrégé
+  newsScore: number;            // score NLP des news
+  overallScore: number;         // 0–100 combiné
+  overallLabel: string;
+  signals: string[];
+}
+
+// ─── Données dérivés (Futures) ───────────────────────────────────────────────
+
+export interface DerivativesData {
+  fundingRate?: number;          // % par 8h (positif = longs paient shorts)
+  openInterest?: number;         // USD
+  openInterestChange24h?: number;// % changement
+  longShortRatio?: number;       // ratio longs/shorts
+  liquidations24h?: {
+    longs: number;
+    shorts: number;
+  };
+}
+
+// ─── Corrélations ────────────────────────────────────────────────────────────
+
+export interface CorrelationData {
+  btcSpx?: number;       // Corrélation BTC/S&P500
+  btcGold?: number;      // Corrélation BTC/Or
+  btcDxy?: number;       // Corrélation BTC/DXY
+  label: string;
+}
+
+// ─── Indicateurs techniques enrichis ────────────────────────────────────────
+
+export interface IchimokuData {
+  tenkan: number;          // Conversion Line (9)
+  kijun: number;           // Base Line (26)
+  senkouA: number;         // Leading Span A
+  senkouB: number;         // Leading Span B
+  chikou: number;          // Lagging Span
+  cloudColor: "bullish" | "bearish";
+  pricePosition: "above_cloud" | "in_cloud" | "below_cloud";
+  signal: Direction;
+}
+
+export interface StochasticRSIData {
+  k: number;               // %K line
+  d: number;               // %D line (SMA de K)
+  crossover: "bullish" | "bearish" | "none";
+  zone: "overbought" | "oversold" | "neutral";
+}
+
+export interface ADXData {
+  adx: number;             // 0–100 (force de tendance)
+  plusDI: number;          // +DI (pression haussière)
+  minusDI: number;         // -DI (pression baissière)
+  regime: MarketRegime;
+  trend: Direction;
+}
 
 export interface TechnicalIndicators {
-  rsi: number;                    // 0–100
+  rsi: number;
+  stochRSI: StochasticRSIData;
   macd: MACDData;
   ema20: number;
   ema50: number;
   ema200: number;
   bollingerBands: BollingerBands;
-  atr: number;                    // Average True Range (volatilité)
+  ichimoku: IchimokuData;
+  adx: ADXData;
+  atr: number;
   volume_trend: "increasing" | "decreasing" | "stable";
 }
 
@@ -74,8 +145,8 @@ export interface BollingerBands {
   upper: number;
   middle: number;
   lower: number;
-  bandwidth: number;              // (upper - lower) / middle
-  percentB: number;               // Position du prix dans les bandes
+  bandwidth: number;
+  percentB: number;
 }
 
 // ─── Analyses stratégiques ───────────────────────────────────────────────────
@@ -83,15 +154,16 @@ export interface BollingerBands {
 export interface StrategyAnalysis {
   name: string;
   direction: Direction;
-  signal: string;                 // Description courte du signal
-  confidence: number;             // 0–100
-  details: string[];              // Points détaillés
+  signal: string;
+  confidence: number;
+  details: string[];
   timeframe: Timeframe;
+  weight?: number;         // Poids dans le consensus (selon timeframe)
 }
 
 export interface PriceActionAnalysis extends StrategyAnalysis {
   name: "Price Action";
-  pattern?: string;               // "Double Top", "Bull Flag", "Head & Shoulders", etc.
+  pattern?: string;
   keyLevels: {
     support: number[];
     resistance: number[];
@@ -102,7 +174,7 @@ export interface SMCAnalysis extends StrategyAnalysis {
   name: "SMC";
   orderBlocks: OrderBlock[];
   fairValueGaps: FairValueGap[];
-  structureBreak?: "BOS" | "CHoCH" | null; // Break of Structure / Change of Character
+  structureBreak?: "BOS" | "CHoCH" | null;
   liquidityZones: number[];
 }
 
@@ -118,24 +190,39 @@ export interface FairValueGap {
   filled: boolean;
 }
 
-// ─── Prédiction IA ───────────────────────────────────────────────────────────
+// ─── Confluence multi-timeframe ──────────────────────────────────────────────
+
+export interface MultiTimeframeSignal {
+  "4H": Direction;
+  "1J": Direction;
+  "1W": Direction;
+  alignment: "strong_bull" | "strong_bear" | "mixed_bull" | "mixed_bear" | "neutral";
+  alignmentScore: number;  // 0–100 : niveau d'accord entre timeframes
+}
+
+// ─── Prédiction enrichie ─────────────────────────────────────────────────────
 
 export interface Prediction {
   direction: Direction;
   targetPrice: number;
-  stopLoss: number;               // Niveau de stop loss suggéré
-  confidence: number;             // 0–100
-  fundamentalScore: number;       // Score fondamental brut (-100 à +100)
+  stopLoss: number;
+  confidence: number;
+  fundamentalScore: number;
+  technicalScore: number;
+  sentimentScore: number;   // NOUVEAU
+  globalScore: number;
+  riskRewardRatio: number;
   reasoning: string[];
   timeframe: Timeframe;
-  technicalScore: number;         // Score technique brut
-  globalScore: number;            // Score combiné
-  riskRewardRatio: number;        // Risk/Reward ratio
+  regime: MarketRegime;     // NOUVEAU — régime de marché détecté
+  multiTF?: MultiTimeframeSignal;  // NOUVEAU — confluence multi-TF
   strategies: {
     priceAction: StrategyAnalysis;
     smc: StrategyAnalysis;
     rsi: StrategyAnalysis;
     macd: StrategyAnalysis;
+    ichimoku: StrategyAnalysis;   // NOUVEAU
+    adx: StrategyAnalysis;        // NOUVEAU
   };
 }
 
@@ -147,7 +234,95 @@ export interface NewsItem {
   source: string;
   publishedAt: string;
   sentiment?: Sentiment;
+  sentimentScore?: number;  // -1 à +1 (NLP enrichi)
   summary?: string;
+}
+
+// ─── Journal de trading (localStorage) ──────────────────────────────────────
+
+export interface TradeEntry {
+  id: string;
+  asset: Asset;
+  timeframe: Timeframe;
+  direction: Direction;
+  entryPrice: number;
+  targetPrice: number;
+  stopLoss: number;
+  entryDate: string;
+  exitDate?: string;
+  exitPrice?: number;
+  result?: "win" | "loss" | "breakeven" | "open";
+  pnlPercent?: number;
+  note?: string;
+  predictionConfidence?: number;
+  predictionDirection?: Direction;
+  tags?: string[];
+}
+
+export interface TradeStats {
+  total: number;
+  wins: number;
+  losses: number;
+  breakevens: number;
+  open: number;
+  winRate: number;          // %
+  avgPnl: number;           // %
+  bestTrade: number;        // %
+  worstTrade: number;       // %
+  totalPnl: number;         // %
+  avgRR: number;
+}
+
+// ─── Alertes prix (localStorage + Web Push) ──────────────────────────────────
+
+export interface PriceAlert {
+  id: string;
+  asset: Asset;
+  condition: "above" | "below";
+  targetPrice: number;
+  message: string;
+  createdAt: string;
+  triggered: boolean;
+  triggeredAt?: string;
+}
+
+// ─── Backtesting ─────────────────────────────────────────────────────────────
+
+export interface BacktestResult {
+  asset: Asset;
+  timeframe: Timeframe;
+  period: string;
+  totalSignals: number;
+  correctSignals: number;
+  accuracy: number;          // %
+  avgConfidenceWin: number;
+  avgConfidenceLoss: number;
+  results: BacktestPoint[];
+}
+
+export interface BacktestPoint {
+  date: string;
+  predictedDirection: Direction;
+  actualDirection: Direction;
+  confidence: number;
+  correct: boolean;
+  priceAtPrediction: number;
+  priceAfter: number;
+  pnlPercent: number;
+}
+
+// ─── Comparaison multi-actifs ─────────────────────────────────────────────────
+
+export interface AssetSnapshot {
+  asset: Asset;
+  price: number;
+  change24h: number;
+  direction: Direction;
+  globalScore: number;
+  confidence: number;
+  rsi: number;
+  regime: MarketRegime;
+  sentiment?: number;
 }
 
 // ─── État global de l'app ────────────────────────────────────────────────────
@@ -160,6 +335,8 @@ export interface AppState {
   macroData: MacroData | null;
   prediction: Prediction | null;
   news: NewsItem[];
+  sentiment: SentimentData | null;
+  derivatives: DerivativesData | null;
   indicators: TechnicalIndicators | null;
   loading: boolean;
   error: string | null;

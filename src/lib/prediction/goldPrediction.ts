@@ -1,17 +1,14 @@
 import type {
-  HistoryPoint,
-  MacroData,
-  Prediction,
-  Timeframe,
-  Direction,
+  HistoryPoint, MacroData, Prediction, Timeframe, Direction,
+  MarketRegime, SentimentData,
 } from "@/types";
 import { computeAllIndicators } from "./indicators";
-import { analyzePriceAction, analyzeSMC, analyzeRSI, analyzeMACD } from "./strategies";
+import { analyzePriceAction, analyzeSMC, analyzeRSI, analyzeMACD, analyzeIchimoku, analyzeADX } from "./strategies";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PRÉDICTEUR OR (XAUUSD)
-// L'or est sensible à : DXY, taux réels, inflation, géopolitique, M2
-// Score fondamental (55%) + Score technique (45%) = Score global
+// PRÉDICTEUR OR v2 — Enrichi : Ichimoku, ADX, StochRSI, Sentiment, Régime
+// L'or : DXY (corrélation inverse forte), taux réels, inflation, M2
+// Score : Fondamental 40% + Technique 45% + Sentiment 15%
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface GoldPredictorInput {
@@ -20,221 +17,193 @@ interface GoldPredictorInput {
   history: HistoryPoint[];
   macro: MacroData;
   timeframe: Timeframe;
+  sentiment?: SentimentData;
 }
 
-/**
- * Score fondamental spécifique à l'or
- * L'or est une valeur refuge : réagit inversement au DXY et aux taux réels
- */
-function computeGoldFundamentalScore(
-  input: GoldPredictorInput,
-  reasons: string[]
-): number {
-  const { price, change24h, history, macro } = input;
+function getGoldWeights(timeframe: Timeframe, regime: MarketRegime) {
+  const base: Record<Timeframe, Record<string, number>> = {
+    "4H": { rsi: 0.22, stochRSI: 0.18, macd: 0.18, priceAction: 0.16, ichimoku: 0.14, smc: 0.08, adx: 0.04 },
+    "1J": { ichimoku: 0.22, priceAction: 0.20, rsi: 0.15, macd: 0.14, smc: 0.14, stochRSI: 0.10, adx: 0.05 },
+    "1W": { ichimoku: 0.28, smc: 0.22, priceAction: 0.20, macd: 0.12, rsi: 0.10, stochRSI: 0.05, adx: 0.03 },
+  };
+  const w = { ...base[timeframe] };
+  if (regime === "ranging") {
+    w.rsi = (w.rsi || 0) * 1.5; w.stochRSI = (w.stochRSI || 0) * 1.5; w.macd = (w.macd || 0) * 0.6;
+  } else if (regime === "trending_bull" || regime === "trending_bear") {
+    w.ichimoku = (w.ichimoku || 0) * 1.4; w.macd = (w.macd || 0) * 1.2; w.rsi = (w.rsi || 0) * 0.75;
+  }
+  const total = Object.values(w).reduce((a, b) => a + b, 0);
+  Object.keys(w).forEach(k => { w[k] = w[k] / total; });
+  return w;
+}
+
+function computeGoldFundamentalScore(input: GoldPredictorInput, reasons: string[]): number {
+  const { macro, change24h, history, price } = input;
   let score = 50;
 
-  // ── Taux réels (Fed Rate - Inflation) ─────────────────────────────────
-  // Des taux réels négatifs sont très haussiers pour l'or
+  // Taux réels = Fed - Inflation (facteur #1 pour l'or)
   const realRate = macro.fedRate - macro.inflation;
-
   if (realRate < -2) {
     score += 20;
-    reasons.push(`Taux réels très négatifs (${realRate.toFixed(1)}%) → environnement idéal pour l'or, actif de protection`);
+    reasons.push(`Taux réels très négatifs (${realRate.toFixed(1)}%) → environnement très favorable à l'or`);
   } else if (realRate < 0) {
-    score += 12;
-    reasons.push(`Taux réels négatifs (${realRate.toFixed(1)}%) → l'or surperforme généralement dans ce contexte`);
+    score += 10;
+    reasons.push(`Taux réels négatifs (${realRate.toFixed(1)}%) → or attractif vs obligations`);
   } else if (realRate > 3) {
     score -= 15;
-    reasons.push(`Taux réels élevés (+${realRate.toFixed(1)}%) → coût d'opportunité fort pour l'or sans rendement`);
+    reasons.push(`Taux réels élevés (+${realRate.toFixed(1)}%) → coût d'opportunité fort, pression sur l'or`);
   } else if (realRate > 1) {
-    score -= 8;
-    reasons.push(`Taux réels positifs (+${realRate.toFixed(1)}%) → légère pression sur l'or`);
-  }
-
-  // ── Inflation ─────────────────────────────────────────────────────────
-  if (macro.inflation > 5) {
-    score += 15;
-    reasons.push(`Inflation élevée (${macro.inflation}) → l'or est la couverture historique contre la perte de pouvoir d'achat`);
-  } else if (macro.inflation > 3) {
-    score += 8;
-    reasons.push(`Inflation modérément élevée (${macro.inflation}) → soutien pour l'or comme hedge`);
-  } else if (macro.inflation < 2) {
-    score -= 6;
-    reasons.push(`Inflation maîtrisée (${macro.inflation}) → moins de pression pour se réfugier dans l'or`);
-  }
-
-  // ── DXY (corrélation inverse très forte avec l'or) ────────────────────
-  if (macro.dxy) {
-    if (macro.dxy > 107) {
-      score -= 18;
-      reasons.push(`Dollar extrêmement fort (DXY ${macro.dxy.toFixed(1)}) → pression baissière majeure sur l'or (corrélation inverse)`);
-    } else if (macro.dxy > 104) {
-      score -= 10;
-      reasons.push(`Dollar fort (DXY ${macro.dxy.toFixed(1)}) → vent de face pour l'or`);
-    } else if (macro.dxy < 98) {
-      score += 15;
-      reasons.push(`Dollar faible (DXY ${macro.dxy.toFixed(1)}) → haussier pour l'or : les acheteurs étrangers profitent`);
-    } else if (macro.dxy < 101) {
-      score += 8;
-      reasons.push(`Dollar en retrait (DXY ${macro.dxy.toFixed(1)}) → léger soutien pour l'or`);
-    }
-  }
-
-  // ── M2 ────────────────────────────────────────────────────────────────
-  if (macro.m2Supply && macro.m2Supply > 21500) {
-    score += 10;
-    reasons.push(`Masse monétaire très expansive (M2 : ${(macro.m2Supply / 1000).toFixed(1)}T$) → dévaluation monétaire → haussier pour l'or`);
-  } else if (macro.m2Supply && macro.m2Supply > 20000) {
-    score += 5;
-    reasons.push(`Masse monétaire élevée (M2 : ${(macro.m2Supply / 1000).toFixed(1)}T$) → soutien modéré pour l'or`);
-  }
-
-  // ── Courbe des taux (signal de stress économique) ────────────────────
-  if (macro.yieldCurve !== undefined && macro.yieldCurve < -0.5) {
-    score += 12;
-    reasons.push(`Courbe des taux inversée (${macro.yieldCurve.toFixed(2)}%) → signal de récession → forte demande refuge pour l'or`);
-  }
-
-  // ── Variation 24h ─────────────────────────────────────────────────────
-  if (change24h > 1.5) {
-    score += 6;
-    reasons.push(`Momentum haussier 24h (+${change24h.toFixed(2)}%) sur l'or`);
-  } else if (change24h < -1.5) {
-    score -= 6;
-    reasons.push(`Correction de l'or (${change24h.toFixed(2)}% en 24h)`);
-  }
-
-  // ── Tendance 7 jours ──────────────────────────────────────────────────
-  if (history.length >= 7) {
-    const trend7d = ((price - history.slice(-7)[0].price) / history.slice(-7)[0].price) * 100;
-    if (trend7d > 3) {
-      score += 6;
-      reasons.push(`Tendance haussière sur 7 jours (+${trend7d.toFixed(1)}%) — demande soutenue`);
-    } else if (trend7d < -3) {
-      score -= 6;
-      reasons.push(`Pression vendeuse sur 7 jours (${trend7d.toFixed(1)}%) — prise de profits`);
-    }
-  }
-
-  return Math.max(0, Math.min(100, score));
-}
-
-/**
- * Score technique pour l'or (identique au crypto mais pondération différente)
- */
-function computeGoldTechnicalScore(
-  history: HistoryPoint[],
-  price: number,
-  reasons: string[]
-): number {
-  if (history.length < 5) return 50;
-  const indicators = computeAllIndicators(history);
-  let score = 50;
-
-  // RSI
-  const rsi = indicators.rsi;
-  if (rsi < 35)      { score += 15; reasons.push(`Or survendu (RSI ${rsi}) → rebond technique attendu`); }
-  else if (rsi > 72) { score -= 15; reasons.push(`Or suracheté (RSI ${rsi}) → consolidation probable`); }
-  else if (rsi > 55) { score += 6; }
-  else if (rsi < 45) { score -= 6; }
-
-  // MACD
-  if (indicators.macd.crossover === "bullish") {
-    score += 18;
-    reasons.push("Signal MACD haussier sur l'or — confirmation technique");
-  } else if (indicators.macd.crossover === "bearish") {
-    score -= 18;
-    reasons.push("Signal MACD baissier sur l'or — prudence");
-  } else if (indicators.macd.macdLine > indicators.macd.signalLine) {
-    score += 7;
-  } else {
     score -= 7;
   }
 
-  // EMA
-  if (price > indicators.ema20) { score += 5; }
-  else { score -= 5; }
-  if (indicators.ema200 > 0) {
-    if (price > indicators.ema200) { score += 5; reasons.push(`Or au-dessus de l'EMA200 → tendance longue haussière préservée`); }
-    else { score -= 5; }
+  // DXY — corrélation inverse la plus forte avec l'or
+  if (macro.dxy) {
+    if (macro.dxy > 107)      { score -= 18; reasons.push(`Dollar très fort (DXY ${macro.dxy.toFixed(1)}) → pression baissière majeure sur l'or`); }
+    else if (macro.dxy > 103) { score -= 8; }
+    else if (macro.dxy < 98)  { score += 15; reasons.push(`Dollar faible (DXY ${macro.dxy.toFixed(1)}) → haussier pour l'or libellé en USD`); }
+    else if (macro.dxy < 101) { score += 6; }
   }
 
-  // Bollinger
-  const bb = indicators.bollingerBands;
-  if (bb.percentB < 0.15)    { score += 10; reasons.push("Or sur la bande Bollinger inférieure → zone de support technique fort"); }
-  else if (bb.percentB > 0.85) { score -= 10; }
+  // Inflation — demande de valeur refuge
+  if (macro.inflation > 5)      { score += 15; reasons.push(`Inflation élevée (${macro.inflation}%) → demande de protection via l'or`); }
+  else if (macro.inflation > 3) { score += 6; }
+  else if (macro.inflation < 2) { score -= 6; }
+
+  // M2 — expansion monétaire favorise l'or
+  if (macro.m2Supply && macro.m2Supply > 21500) {
+    score += 10;
+    reasons.push(`Masse monétaire M2 expansive (${(macro.m2Supply / 1000).toFixed(1)}T$) → dévaluation monétaire favorable à l'or`);
+  }
+
+  // Courbe inversée = risque récession = refuge or
+  if (macro.yieldCurve !== undefined && macro.yieldCurve < -0.5) {
+    score += 12;
+    reasons.push(`Courbe de taux inversée (${macro.yieldCurve.toFixed(2)}%) → signal récession → or refuge`);
+  }
+
+  if (change24h > 1.5)       { score += 5; }
+  else if (change24h < -1.5) { score -= 5; }
+
+  if (history.length >= 7) {
+    const t7 = ((price - history.slice(-7)[0].price) / history.slice(-7)[0].price) * 100;
+    if (t7 > 4)       { score += 5; reasons.push(`Tendance haussière sur 7 périodes (+${t7.toFixed(1)}%)`); }
+    else if (t7 < -4) { score -= 5; reasons.push(`Tendance baissière sur 7 périodes (${t7.toFixed(1)}%)`); }
+  }
 
   return Math.max(0, Math.min(100, score));
 }
 
-/**
- * Prédicteur principal OR
- */
+function computeGoldTechnicalScore(history: HistoryPoint[], price: number, timeframe: Timeframe, reasons: string[], regime: MarketRegime): number {
+  const indicators = computeAllIndicators(history);
+  const weights    = getGoldWeights(timeframe, regime);
+  const scores: Record<string, number> = {};
+
+  // RSI
+  const rsi = indicators.rsi;
+  if (rsi < 32)      { scores.rsi = 82; reasons.push(`RSI or survendu (${rsi}) — rebond probable`); }
+  else if (rsi < 44) { scores.rsi = 38; }
+  else if (rsi > 72) { scores.rsi = 18; reasons.push(`RSI or suracheté (${rsi}) — consolidation probable`); }
+  else if (rsi > 58) { scores.rsi = 65; }
+  else               { scores.rsi = 50; }
+
+  // StochRSI
+  const stoch = indicators.stochRSI;
+  if (stoch.zone === "oversold" && stoch.crossover === "bullish")   { scores.stochRSI = 88; reasons.push(`StochRSI or : croisement haussier en survente — signal d'entrée fort`); }
+  else if (stoch.zone === "oversold")                               { scores.stochRSI = 75; }
+  else if (stoch.zone === "overbought" && stoch.crossover === "bearish") { scores.stochRSI = 12; }
+  else if (stoch.zone === "overbought")                             { scores.stochRSI = 25; }
+  else if (stoch.crossover === "bullish")                           { scores.stochRSI = 65; }
+  else if (stoch.crossover === "bearish")                           { scores.stochRSI = 35; }
+  else                                                              { scores.stochRSI = 50; }
+
+  // MACD
+  if (indicators.macd.crossover === "bullish")      { scores.macd = 82; reasons.push("MACD or : croisement haussier détecté"); }
+  else if (indicators.macd.crossover === "bearish") { scores.macd = 18; reasons.push("MACD or : croisement baissier détecté"); }
+  else scores.macd = indicators.macd.macdLine > indicators.macd.signalLine ? 60 : 40;
+
+  // Ichimoku
+  const ichi = indicators.ichimoku;
+  if (ichi.pricePosition === "above_cloud" && ichi.cloudColor === "bullish") {
+    scores.ichimoku = 78; reasons.push("Or au-dessus du nuage Ichimoku haussier — tendance long terme confirmée");
+  } else if (ichi.pricePosition === "below_cloud") {
+    scores.ichimoku = 22;
+  } else { scores.ichimoku = ichi.tenkan > ichi.kijun ? 60 : 40; }
+
+  // ADX
+  const adx = indicators.adx;
+  if (adx.adx > 28 && adx.trend === "BULLISH") { scores.adx = 70; }
+  else if (adx.adx > 28 && adx.trend === "BEARISH") { scores.adx = 30; }
+  else { scores.adx = 50; }
+
+  // Price Action & SMC
+  const pa  = analyzePriceAction(history, price, timeframe);
+  const smc = analyzeSMC(history, price, timeframe);
+  scores.priceAction = pa.direction === "BULLISH" ? 50 + pa.confidence * 0.35 : pa.direction === "BEARISH" ? 50 - pa.confidence * 0.35 : 50;
+  scores.smc         = smc.direction === "BULLISH" ? 50 + smc.confidence * 0.32 : smc.direction === "BEARISH" ? 50 - smc.confidence * 0.32 : 50;
+
+  // EMA / BB bonus
+  let emaBonus = 0;
+  if (price > indicators.ema20)  emaBonus += 5;
+  if (price > indicators.ema50)  emaBonus += 4;
+  if (price > indicators.ema200) emaBonus += 6;
+  if (indicators.bollingerBands.percentB < 0.1) { emaBonus += 8; reasons.push("Or sous la bande Bollinger inférieure — zone de survente"); }
+  else if (indicators.bollingerBands.percentB > 0.9) emaBonus -= 8;
+
+  const weightedScore = Object.entries(scores).reduce((sum, [key, val]) => sum + val * (weights[key] ?? 0.05), emaBonus * 0.06);
+  return Math.max(0, Math.min(100, Math.round(50 + (weightedScore - 50))));
+}
+
 export function predictGold(input: GoldPredictorInput): Prediction {
-  const { price, history, timeframe } = input;
+  const { price, history, timeframe, sentiment } = input;
   const reasons: string[] = [];
 
-  // ── Calcul des scores ─────────────────────────────────────────────────
-  // Or : fondamental légèrement dominant (55% / 45%)
+  const indicators     = computeAllIndicators(history);
+  const regime         = indicators.adx.regime;
   const fundamentalScore = computeGoldFundamentalScore(input, reasons);
-  const technicalScore   = computeGoldTechnicalScore(history, price, reasons);
-  const globalScore      = Math.round(fundamentalScore * 0.55 + technicalScore * 0.45);
+  const technicalScore   = computeGoldTechnicalScore(history, price, timeframe, reasons, regime);
+  const sentimentScore   = sentiment?.overallScore ?? 50;
 
-  // ── Direction ─────────────────────────────────────────────────────────
-  const direction: Direction =
-    globalScore >= 62 ? "BULLISH" :
-    globalScore <= 42 ? "BEARISH" :
-    "NEUTRAL";
+  if (sentimentScore >= 70) reasons.push(`Sentiment or positif (${sentimentScore}/100)`);
+  else if (sentimentScore <= 30) reasons.push(`Sentiment or négatif (${sentimentScore}/100) — possible valeur refuge`);
 
-  // ── Prix cible ────────────────────────────────────────────────────────
-  // L'or a une volatilité plus faible que les cryptos
-  const indicators = computeAllIndicators(history);
-  const atr = indicators.atr || price * 0.008; // ~0.8% par défaut pour l'or
+  // Or : Fondamental 40% + Technique 45% + Sentiment 15%
+  const globalScore = Math.max(0, Math.min(100, Math.round(
+    fundamentalScore * 0.40 + technicalScore * 0.45 + sentimentScore * 0.15
+  )));
 
-  const targetMultMap: Record<Timeframe, number> = { "4H": 2, "1J": 4, "1W": 8 };
-  const stopMultMap:   Record<Timeframe, number> = { "4H": 1.2, "1J": 2.5, "1W": 4 };
+  const direction: Direction = globalScore >= 62 ? "BULLISH" : globalScore <= 42 ? "BEARISH" : "NEUTRAL";
 
-  const targetPrice = direction === "BULLISH"
-    ? price + atr * targetMultMap[timeframe]
-    : direction === "BEARISH"
-    ? price - atr * targetMultMap[timeframe]
-    : price + atr * (globalScore > 50 ? 0.8 : -0.8);
-
-  const stopLoss = direction === "BULLISH"
-    ? price - atr * stopMultMap[timeframe]
-    : price + atr * stopMultMap[timeframe];
-
-  // ── Risk/Reward ────────────────────────────────────────────────────────
-  const reward = Math.abs(targetPrice - price);
-  const risk   = Math.abs(stopLoss - price);
+  const atr = indicators.atr || price * 0.008; // Or : ~0.8% volatilité
+  const mults: Record<Timeframe, [number, number]> = { "4H": [2, 1], "1J": [4, 2], "1W": [8, 4] };
+  const [tgtM, stpM] = mults[timeframe];
+  const targetPrice = direction === "BULLISH" ? price + atr * tgtM : direction === "BEARISH" ? price - atr * tgtM : price;
+  const stopLoss    = direction === "BULLISH" ? price - atr * stpM : price + atr * stpM;
+  const reward      = Math.abs(targetPrice - price);
+  const risk        = Math.abs(stopLoss - price);
   const riskRewardRatio = risk > 0 ? parseFloat((reward / risk).toFixed(2)) : 1;
-
-  // ── Confiance ─────────────────────────────────────────────────────────
-  const distFromNeutral = Math.abs(globalScore - 50);
-  const confidence = Math.min(88, Math.max(40, 48 + distFromNeutral * 0.85));
-
-  // ── Stratégies ────────────────────────────────────────────────────────
-  const priceActionAnalysis = analyzePriceAction(history, price, timeframe);
-  const smcAnalysis         = analyzeSMC(history, price, timeframe);
-  const rsiAnalysis         = analyzeRSI(indicators, price, history, timeframe);
-  const macdAnalysis        = analyzeMACD(indicators, price, timeframe);
+  const confidence  = Math.min(88, Math.max(35, 40 + Math.abs(globalScore - 50) * 0.9));
 
   return {
     direction,
-    targetPrice:    parseFloat(targetPrice.toFixed(2)),
-    stopLoss:       parseFloat(stopLoss.toFixed(2)),
-    confidence:     parseFloat(confidence.toFixed(1)),
+    targetPrice:       parseFloat(targetPrice.toFixed(2)),
+    stopLoss:          parseFloat(stopLoss.toFixed(2)),
+    confidence:        parseFloat(confidence.toFixed(1)),
     fundamentalScore,
     technicalScore,
+    sentimentScore,
     globalScore,
     riskRewardRatio,
-    reasoning:      reasons.slice(0, 6),
+    reasoning:         reasons.slice(0, 7),
     timeframe,
+    regime,
+    multiTF:           undefined,
     strategies: {
-      priceAction: priceActionAnalysis,
-      smc:         smcAnalysis,
-      rsi:         rsiAnalysis,
-      macd:        macdAnalysis,
+      priceAction: analyzePriceAction(history, price, timeframe),
+      smc:         analyzeSMC(history, price, timeframe),
+      rsi:         analyzeRSI(indicators, price, history, timeframe),
+      macd:        analyzeMACD(indicators, price, timeframe),
+      ichimoku:    analyzeIchimoku(indicators, price, timeframe),
+      adx:         analyzeADX(indicators, timeframe),
     },
   };
 }
