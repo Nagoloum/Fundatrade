@@ -10,7 +10,7 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string; brd
   expired:    { label: "EXPIRÉ",       color: "var(--text-muted)", bg: "transparent",             brd: "var(--border-subtle)", icon: "○" },
 };
 
-const ASSET_COLORS: Record<Asset, string> = { BTC: "#f7931a", ETH: "#627eea", SOL: "#9945ff", XAUUSD: "#ffd700" };
+const ASSET_COLORS: Record<Asset, string> = { BTC: "#f7931a", XAUUSD: "#ffd700" };
 
 function StatCard({ label, value, color, sub }: { label: string; value: string | number; color?: string; sub?: string }) {
   return (
@@ -62,7 +62,7 @@ export default function HistoryPanel() {
 
         {/* Filters */}
         <div style={{ display: "flex", gap: "0.4rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
-          {(["all", "BTC", "ETH", "SOL", "XAUUSD"] as const).map(f => (
+          {(["all", "BTC", "XAUUSD"] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={filter === f ? "btn-primary" : "btn-ghost"}
               style={{ fontSize: "0.62rem", fontFamily: "'Orbitron', monospace", padding: "0.38rem 0.9rem" }}>

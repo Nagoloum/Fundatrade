@@ -1,4 +1,4 @@
-export type Asset = "XAUUSD" | "BTC" | "ETH" | "SOL";
+export type Asset = "XAUUSD" | "BTC";
 export type Timeframe = "4H" | "1J" | "1W";
 export type Theme = "dark" | "light";
 export type Direction = "BULLISH" | "BEARISH" | "NEUTRAL";
