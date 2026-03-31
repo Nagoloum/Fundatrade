@@ -1,109 +1,61 @@
 "use client";
-import type { DerivativesData, Asset } from "@/types";
+import type { DerivativesData } from "@/types";
 
-interface DerivativesPanelProps {
-  data: DerivativesData;
-  asset: Asset;
-}
-
-export default function DerivativesPanel({ data, asset }: DerivativesPanelProps) {
-  const fmt = (n: number | undefined, decimals = 3, suffix = "%") =>
-    n !== undefined ? `${n > 0 ? "+" : ""}${n.toFixed(decimals)}${suffix}` : "—";
-
-  const frColor = data.fundingRate !== undefined
-    ? data.fundingRate > 0.1 ? "var(--bear)" : data.fundingRate < -0.05 ? "var(--bull)" : "var(--neutral)"
-    : "var(--text-muted)";
-
-  const lsColor = data.longShortRatio !== undefined
-    ? data.longShortRatio > 0.65 ? "var(--bear)" : data.longShortRatio < 0.40 ? "var(--bull)" : "var(--neutral)"
-    : "var(--text-muted)";
-
-  const oiColor = data.openInterestChange24h !== undefined
-    ? data.openInterestChange24h > 3 ? "var(--bull)" : data.openInterestChange24h < -3 ? "var(--bear)" : "var(--neutral)"
-    : "var(--text-muted)";
-
+export default function DerivativesPanel({ data }: { data: DerivativesData }) {
+  const fmt = (n: number | undefined, dec = 3) => n !== undefined ? `${n > 0 ? "+" : ""}${n.toFixed(dec)}%` : "—";
+  const frColor = data.fundingRate !== undefined ? (data.fundingRate > 0.1 ? "var(--bear)" : data.fundingRate < -0.05 ? "var(--bull)" : "var(--neutral)") : "var(--text-muted)";
+  const lsColor = data.longShortRatio !== undefined ? (data.longShortRatio > 0.65 ? "var(--bear)" : data.longShortRatio < 0.40 ? "var(--bull)" : "var(--neutral)") : "var(--text-muted)";
+  const oiColor = data.openInterestChange24h !== undefined ? (data.openInterestChange24h > 3 ? "var(--bull)" : data.openInterestChange24h < -3 ? "var(--bear)" : "var(--neutral)") : "var(--text-muted)";
   const lsPct = data.longShortRatio !== undefined ? data.longShortRatio * 100 : 50;
 
   return (
-    <>
-      <div className="card">
-        <div className="section-label">Marché des dérivés</div>
-        <div className="ft-deriv-sub">Futures {asset}/USDT · Bybit</div>
+    <div className="card">
+      <div className="section-label">Dérivés BTC — Bybit Futures</div>
 
-        <div className="ft-deriv-grid">
-          {/* Funding Rate */}
-          <div className="ft-deriv-metric">
-            <div className="ft-deriv-m-label">Funding Rate <span className="ft-deriv-m-period">(8h)</span></div>
-            <div className="ft-deriv-m-value" style={{ color: frColor }}>
-              {data.fundingRate !== undefined ? fmt(data.fundingRate) : "—"}
-            </div>
-            <div className="ft-deriv-m-hint">
-              {data.fundingRate !== undefined
-                ? data.fundingRate > 0.1 ? "Surcharge pour les longs"
-                : data.fundingRate < -0.05 ? "Surcharge pour les shorts"
-                : "Équilibré"
-                : "Non disponible"}
-            </div>
-          </div>
-
-          {/* Open Interest */}
-          <div className="ft-deriv-metric">
-            <div className="ft-deriv-m-label">Open Interest</div>
-            <div className="ft-deriv-m-value" style={{ color: "var(--text-primary)", fontSize: "0.82rem" }}>
-              {data.openInterest ? `$${(data.openInterest / 1e9).toFixed(2)}B` : "—"}
-            </div>
-            <div className="ft-deriv-m-hint" style={{ color: oiColor }}>
-              {data.openInterestChange24h !== undefined ? `${fmt(data.openInterestChange24h, 1)} sur 1h` : ""}
-            </div>
-          </div>
-
-          {/* Long/Short Ratio */}
-          <div className="ft-deriv-metric" style={{ gridColumn: "1 / -1" }}>
-            <div className="ft-deriv-m-label">Ratio Long / Short</div>
-            <div className="ft-deriv-ls-bar">
-              <div className="ft-deriv-ls-long" style={{ flex: lsPct, background: "var(--bull-bg)", borderRight: "1px solid var(--bull)" }}>
-                <span className="ft-deriv-ls-label" style={{ color: "var(--bull)" }}>Long {lsPct.toFixed(1)}%</span>
-              </div>
-              <div className="ft-deriv-ls-short" style={{ flex: 100 - lsPct, background: "var(--bear-bg)" }}>
-                <span className="ft-deriv-ls-label" style={{ color: "var(--bear)" }}>{(100 - lsPct).toFixed(1)}% Short</span>
-              </div>
-            </div>
-            <div className="ft-deriv-m-hint" style={{ color: lsColor }}>
-              {data.longShortRatio !== undefined
-                ? lsPct > 65 ? "Marché surpositionné long — risque de liquidation en cascade"
-                : lsPct < 40 ? "Majorité de shorts — potentiel short squeeze"
-                : "Ratio équilibré — pas de biais directionnel fort"
-                : ""}
-            </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.55rem" }}>
+        <div style={{ padding: "0.6rem 0.65rem", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 9 }}>
+          <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "0.46rem", fontWeight: 700, letterSpacing: "0.12em", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 4 }}>Funding Rate (8h)</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1rem", fontWeight: 700, color: frColor, lineHeight: 1 }}>{data.fundingRate !== undefined ? fmt(data.fundingRate) : "—"}</div>
+          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "0.58rem", color: "var(--text-muted)", marginTop: 3 }}>
+            {data.fundingRate !== undefined ? (data.fundingRate > 0.1 ? "Surcharge longs" : data.fundingRate < -0.05 ? "Surcharge shorts" : "Équilibré") : "N/A"}
           </div>
         </div>
-
-        {/* Signaux dérivés */}
-        {data.signals && data.signals.length > 0 && (
-          <div className="ft-deriv-signals">
-            {data.signals.map((s, i) => (
-              <div key={i} className="ft-deriv-signal">
-                <span style={{ color: "var(--text-accent)", flexShrink: 0 }}>›</span>{s}
-              </div>
-            ))}
+        <div style={{ padding: "0.6rem 0.65rem", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 9 }}>
+          <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "0.46rem", fontWeight: 700, letterSpacing: "0.12em", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 4 }}>Open Interest</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)", lineHeight: 1 }}>
+            {data.openInterest ? `$${(data.openInterest / 1e9).toFixed(2)}B` : "—"}
           </div>
-        )}
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.58rem", color: oiColor, marginTop: 3 }}>
+            {data.openInterestChange24h !== undefined ? `${fmt(data.openInterestChange24h, 1)} (1h)` : ""}
+          </div>
+        </div>
       </div>
 
-      <style>{`
-        .ft-deriv-sub { font-size: 0.62rem; color: var(--text-muted); margin-bottom: 0.75rem; }
-        .ft-deriv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 0.65rem; }
-        .ft-deriv-metric { padding: 0.6rem 0.7rem; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 9px; }
-        .ft-deriv-m-label { font-size: 0.56rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
-        .ft-deriv-m-period { font-size: 0.5rem; }
-        .ft-deriv-m-value { font-family: var(--font-mono),monospace; font-size: 1rem; font-weight: 700; line-height: 1; margin-bottom: 3px; }
-        .ft-deriv-m-hint { font-size: 0.57rem; color: var(--text-muted); line-height: 1.3; }
-        .ft-deriv-ls-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin: 0.35rem 0; }
-        .ft-deriv-ls-long, .ft-deriv-ls-short { display: flex; align-items: center; justify-content: center; min-width: 0; transition: flex 0.8s ease; }
-        .ft-deriv-ls-label { font-size: 0.58rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
-        .ft-deriv-signals { display: flex; flex-direction: column; gap: 0.25rem; border-top: 1px solid var(--border-subtle); padding-top: 0.6rem; }
-        .ft-deriv-signal { display: flex; gap: 0.35rem; font-size: 0.62rem; color: var(--text-secondary); line-height: 1.4; }
-      `}</style>
-    </>
+      {/* Long/Short ratio */}
+      <div style={{ marginBottom: "0.55rem" }}>
+        <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "0.46rem", fontWeight: 700, letterSpacing: "0.12em", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 6 }}>Ratio Long / Short</div>
+        <div style={{ display: "flex", height: 20, borderRadius: 5, overflow: "hidden" }}>
+          <div style={{ flex: lsPct, background: "var(--bull-bg)", borderRight: "1px solid var(--bull)", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.58rem", fontWeight: 700, color: "var(--bull)", padding: "0 4px", whiteSpace: "nowrap", overflow: "hidden" }}>▲ {lsPct.toFixed(1)}%</span>
+          </div>
+          <div style={{ flex: 100 - lsPct, background: "var(--bear-bg)", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.58rem", fontWeight: 700, color: "var(--bear)", padding: "0 4px", whiteSpace: "nowrap", overflow: "hidden" }}>{(100 - lsPct).toFixed(1)}% ▼</span>
+          </div>
+        </div>
+        <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "0.6rem", color: lsColor, marginTop: 4, fontWeight: 600 }}>
+          {lsPct > 65 ? "Marché surpositionné long — risque liquidation" : lsPct < 40 ? "Majorité shorts — potentiel squeeze" : "Ratio équilibré"}
+        </div>
+      </div>
+
+      {data.signals && data.signals.length > 0 && (
+        <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.22rem" }}>
+          {data.signals.map((s, i) => (
+            <div key={i} style={{ display: "flex", gap: "0.3rem", fontFamily: "'Rajdhani', sans-serif", fontSize: "0.62rem", color: "var(--text-secondary)", lineHeight: 1.4, fontWeight: 500 }}>
+              <span style={{ color: "var(--text-accent)", flexShrink: 0 }}>›</span>{s}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

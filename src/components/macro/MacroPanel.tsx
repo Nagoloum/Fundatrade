@@ -1,207 +1,97 @@
 "use client";
-
 import type { MacroData } from "@/types";
-import MacroIndicator from "./MacroIndicator";
 
-interface MacroPanelProps {
-  data: MacroData;
+function MacroRow({ label, value, explanation, signal, signalLabel }: {
+  label: string; value: string; explanation: string;
+  signal?: "positive" | "negative" | "neutral"; signalLabel?: string;
+}) {
+  const c = signal === "positive" ? "var(--bull)" : signal === "negative" ? "var(--bear)" : "var(--neutral)";
+  const bg = signal === "positive" ? "var(--bull-bg)" : signal === "negative" ? "var(--bear-bg)" : "var(--neutral-bg)";
+  const brd = signal === "positive" ? "var(--bull-border)" : signal === "negative" ? "var(--bear-border)" : "var(--neutral-border)";
+  const icon = signal === "positive" ? "▲" : signal === "negative" ? "▼" : "◆";
+  return (
+    <div style={{ padding: "0.65rem 0.75rem", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 9, transition: "border-color 0.18s" }}
+      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--border-subtle)"}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+        <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600 }}>{label}</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.88rem", fontWeight: 700, color: signal ? c : "var(--text-primary)" }}>{value}</span>
+      </div>
+      <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "0.58rem", color: "var(--text-muted)", lineHeight: 1.45, marginBottom: 5 }}>{explanation}</div>
+      {signal && signalLabel && (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", fontFamily: "'Orbitron', monospace", fontSize: "0.5rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: c, background: bg, padding: "0.1rem 0.38rem", borderRadius: 4, border: `1px solid ${brd}` }}>
+          {icon} {signalLabel}
+        </span>
+      )}
+    </div>
+  );
 }
 
-export default function MacroPanel({ data }: MacroPanelProps) {
-  // ── Signals Fed Rate ────────────────────────────────────────────────────
-  const fedSignal =
-    data.fedRate < 3 ? "positive" :
-    data.fedRate > 5 ? "negative" :
-    "neutral";
-  const fedLabel =
-    data.fedRate < 3 ? "Politique accommodante" :
-    data.fedRate > 5 ? "Politique restrictive" :
-    "Politique neutre";
-  const fedImpact =
-    data.fedRate < 3 ? "→ Favorable aux cryptos et à l'or" :
-    data.fedRate > 5 ? "→ Pression baissière sur les actifs risqués" :
-    "→ Impact limité sur les marchés";
+export default function MacroPanel({ data }: { data: MacroData }) {
+  const fedSig = data.fedRate < 3 ? "positive" : data.fedRate > 5 ? "negative" : "neutral" as const;
+  const cpiSig = data.inflation > 4 ? "negative" : data.inflation < 2 ? "positive" : "neutral" as const;
+  const dxySig = data.dxy && data.dxy > 105 ? "negative" : data.dxy && data.dxy < 98 ? "positive" : "neutral" as const;
+  const m2Sig: "positive" | "neutral" = data.m2Supply && data.m2Supply > 21000 ? "positive" : "neutral";
 
-  // ── Signals CPI Inflation ───────────────────────────────────────────────
-  const cpiSignal =
-    data.inflation > 4 ? "negative" :
-    data.inflation < 2 ? "positive" :
-    "neutral";
-  const cpiLabel =
-    data.inflation > 4 ? "Inflation élevée" :
-    data.inflation < 2 ? "Inflation faible" :
-    "Inflation dans la cible";
-  const cpiImpact =
-    data.inflation > 4 ? "→ Haussier pour l'or, bearish pour les obligations" :
-    data.inflation < 2 ? "→ La Fed peut baisser les taux" :
-    "→ Environnement stable";
-
-  // ── Signals DXY ────────────────────────────────────────────────────────
-  const dxySignal =
-    data.dxy && data.dxy > 105 ? "negative" :
-    data.dxy && data.dxy < 98  ? "positive" :
-    "neutral";
-  const dxyLabel =
-    data.dxy && data.dxy > 105 ? "Dollar très fort" :
-    data.dxy && data.dxy < 98  ? "Dollar faible" :
-    "Dollar neutre";
-  const dxyImpact =
-    data.dxy && data.dxy > 105 ? "→ Baissier pour l'or et les cryptos" :
-    data.dxy && data.dxy < 98  ? "→ Haussier pour l'or et les cryptos" :
-    "→ Impact modéré";
-
-  // ── Signals M2 ─────────────────────────────────────────────────────────
-  const m2Signal: "positive" | "negative" | "neutral" =
-    data.m2Supply && data.m2Supply > 21000 ? "positive" :
-    "neutral";
-  const m2Label =
-    data.m2Supply && data.m2Supply > 21000 ? "Masse monétaire élevée" :
-    "Masse monétaire normale";
-  const m2Impact =
-    data.m2Supply && data.m2Supply > 21000
-      ? "→ Liquidités abondantes, haussier pour les actifs"
-      : "→ Liquidités dans la normale";
-
-  // ── Score macro global ──────────────────────────────────────────────────
   let macroScore = 50;
-  if (fedSignal === "positive")  macroScore += 15;
-  if (fedSignal === "negative")  macroScore -= 15;
-  if (cpiSignal === "positive")  macroScore += 10;
-  if (cpiSignal === "negative")  macroScore -= 10;
-  if (dxySignal === "positive")  macroScore += 10;
-  if (dxySignal === "negative")  macroScore -= 10;
-  if (m2Signal === "positive")   macroScore += 5;
+  if (fedSig === "positive") macroScore += 15; if (fedSig === "negative") macroScore -= 15;
+  if (cpiSig === "negative") macroScore -= 10; if (cpiSig === "positive") macroScore += 10;
+  if (dxySig === "positive") macroScore += 10; if (dxySig === "negative") macroScore -= 10;
+  if (m2Sig === "positive")  macroScore += 5;
   macroScore = Math.max(0, Math.min(100, macroScore));
 
-  const macroColor =
-    macroScore >= 65 ? "var(--bull)" :
-    macroScore <= 40 ? "var(--bear)" :
-    "var(--neutral)";
-  const macroLabel =
-    macroScore >= 65 ? "Environnement favorable" :
-    macroScore <= 40 ? "Environnement défavorable" :
-    "Environnement mitigé";
+  const msColor = macroScore >= 65 ? "var(--bull)" : macroScore <= 40 ? "var(--bear)" : "var(--neutral)";
+  const msGr    = macroScore >= 65 ? "#00c880,#00f0a0" : macroScore <= 40 ? "#cc2244,#ff3d6b" : "#cc7700,#ffab00";
+  const msLabel = macroScore >= 65 ? "Environnement favorable" : macroScore <= 40 ? "Environnement défavorable" : "Environnement mitigé";
 
   return (
     <div className="card">
-      {/* En-tête */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1rem",
-        }}
-      >
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem" }}>
         <div>
           <div className="section-label">Macro-économie</div>
-          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            Données FRED & marchés
-          </div>
+          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary)", marginTop: 2 }}>Données FRED</div>
         </div>
-
-        {/* Score macro */}
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: "0.55rem", color: "var(--text-muted)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            Score macro
-          </div>
-          <div
-            style={{
-              fontFamily: "var(--font-mono), monospace",
-              fontSize: "1.4rem",
-              fontWeight: 700,
-              color: macroColor,
-              lineHeight: 1,
-            }}
-          >
-            {macroScore}
-          </div>
-          <div style={{ fontSize: "0.55rem", color: macroColor, marginTop: "2px" }}>
-            {macroLabel}
-          </div>
+          <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "0.48rem", fontWeight: 700, letterSpacing: "0.12em", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 3 }}>Score macro</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.4rem", fontWeight: 700, color: msColor, lineHeight: 1 }}>{macroScore}</div>
+          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "0.55rem", color: msColor, marginTop: 2, fontWeight: 600 }}>{msLabel}</div>
         </div>
       </div>
-
-      {/* Barre de score */}
-      <div className="progress-bar" style={{ marginBottom: "1rem" }}>
-        <div
-          className="progress-fill"
-          style={{
-            width: `${macroScore}%`,
-            background: `linear-gradient(90deg, ${macroScore >= 65 ? "#00cc6a, #00ff88" : macroScore <= 40 ? "#cc2244, #ff4466" : "#cc7700, #ffa520"})`,
-          }}
-        />
+      <div className="progress-bar" style={{ marginBottom: "0.85rem" }}>
+        <div className="progress-fill" style={{ width: `${macroScore}%`, background: `linear-gradient(90deg,${msGr})` }} />
       </div>
 
-      {/* Indicateurs */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        <MacroIndicator
-          label="Taux directeur Fed (FEDFUNDS)"
-          value={data.fedRate.toFixed(2)}
-          unit="%"
-          explanation="Le taux d'intérêt cible de la Fed. Des taux bas favorisent la prise de risque et gonflent les valorisations d'actifs."
-          signal={fedSignal}
-          signalLabel={fedLabel}
-          impact={fedImpact}
-        />
-
-        <MacroIndicator
-          label="Inflation CPI (CPIAUCSL)"
-          value={data.inflation.toFixed(1)}
-          unit=""
-          explanation="Indice des prix à la consommation. Mesure la hausse générale des prix. La cible de la Fed est 2%. Au-dessus, la Fed monte les taux."
-          signal={cpiSignal}
-          signalLabel={cpiLabel}
-          impact={cpiImpact}
-        />
-
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+        <MacroRow label="Taux directeur Fed" value={`${data.fedRate.toFixed(2)}%`}
+          explanation="Taux cible de la Fed. Bas = risque favorable ; Élevé = pression sur les actifs."
+          signal={fedSig}
+          signalLabel={data.fedRate < 3 ? "Accommodant" : data.fedRate > 5 ? "Restrictif" : "Neutre"} />
+        <MacroRow label="Inflation CPI" value={`${data.inflation.toFixed(1)}`}
+          explanation="Indice des prix à la consommation. Cible Fed : 2%. Au-dessus = hausse des taux."
+          signal={cpiSig}
+          signalLabel={data.inflation > 4 ? "Élevée" : data.inflation < 2 ? "Faible" : "Dans la cible"} />
         {data.dxy !== undefined && data.dxy > 0 && (
-          <MacroIndicator
-            label="Dollar Index (DXY)"
-            value={data.dxy.toFixed(2)}
-            unit=""
-            explanation="Force relative du dollar US contre un panier de devises. Un DXY fort pèse sur l'or et les cryptos libellés en dollars."
-            signal={dxySignal}
-            signalLabel={dxyLabel}
-            impact={dxyImpact}
-          />
+          <MacroRow label="Dollar Index DXY" value={data.dxy.toFixed(2)}
+            explanation="Force du dollar US. DXY fort = pression baissière sur or/crypto. DXY faible = haussier."
+            signal={dxySig}
+            signalLabel={data.dxy > 105 ? "Dollar fort" : data.dxy < 98 ? "Dollar faible" : "Neutre"} />
         )}
-
         {data.m2Supply !== undefined && data.m2Supply > 0 && (
-          <MacroIndicator
-            label="M2 (Masse monétaire, Mds $)"
-            value={(data.m2Supply / 1000).toFixed(1)}
-            unit="T$"
-            explanation="Total de la monnaie en circulation + dépôts à court terme. Une M2 croissante injecte des liquidités dans le système."
-            signal={m2Signal}
-            signalLabel={m2Label}
-            impact={m2Impact}
-          />
+          <MacroRow label="M2 Masse monétaire" value={`${(data.m2Supply / 1000).toFixed(1)}T$`}
+            explanation="Monnaie en circulation + dépôts court terme. M2 croissante = liquidités abondantes."
+            signal={m2Sig}
+            signalLabel={data.m2Supply > 21000 ? "Masse élevée" : "Normale"} />
         )}
-
         {data.yieldCurve !== undefined && (
-          <MacroIndicator
-            label="Courbe des taux (10Y - 2Y)"
-            value={data.yieldCurve >= 0 ? `+${data.yieldCurve.toFixed(2)}` : data.yieldCurve.toFixed(2)}
-            unit="%"
-            explanation="Spread entre obligations 10 ans et 2 ans. Négatif = courbe inversée = signal de récession historique."
+          <MacroRow label="Courbe taux (10Y-2Y)" value={`${data.yieldCurve >= 0 ? "+" : ""}${data.yieldCurve.toFixed(2)}%`}
+            explanation="Spread obligations. Négatif = courbe inversée = signal historique de récession."
             signal={data.yieldCurve >= 0 ? "positive" : "negative"}
-            signalLabel={data.yieldCurve >= 0 ? "Courbe normale" : "Courbe inversée ⚠️"}
-            impact={data.yieldCurve < 0 ? "→ Signal de récession potentielle" : "→ Croissance économique attendue"}
-          />
+            signalLabel={data.yieldCurve >= 0 ? "Normale" : "Inversée ⚠"} />
         )}
       </div>
-
-      {/* Note source */}
-      <div
-        style={{
-          marginTop: "0.75rem",
-          fontSize: "0.56rem",
-          color: "var(--text-muted)",
-          textAlign: "right",
-        }}
-      >
-        Source : FRED (Federal Reserve Bank of St. Louis)
+      <div style={{ marginTop: "0.65rem", fontFamily: "'JetBrains Mono', monospace", fontSize: "0.52rem", color: "var(--text-muted)", textAlign: "right" }}>
+        Source : FRED · Federal Reserve Bank of St. Louis
       </div>
     </div>
   );

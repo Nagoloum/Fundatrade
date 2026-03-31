@@ -1,456 +1,241 @@
-import type {
-  HistoryPoint,
-  StrategyAnalysis,
-  PriceActionAnalysis,
-  SMCAnalysis,
-  Direction,
-  Timeframe,
-  TechnicalIndicators,
-} from "@/types";
+import type { HistoryPoint, StrategyAnalysis, Direction, Timeframe, TechnicalIndicators } from "@/types";
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STRATÉGIES D'ANALYSE — Price Action, SMC, RSI, MACD
-// ═══════════════════════════════════════════════════════════════════════════
-
-// RSI inline pour éviter les imports circulaires
-function calculateRSIInline(prices: number[], period = 14): number {
+function calcRSIInline(prices: number[], period = 14): number {
   if (prices.length < period + 1) return 50;
-  const changes = prices.slice(1).map((p, i) => p - prices[i]);
-  let gains = 0, losses = 0;
-  for (let i = 0; i < period; i++) {
-    if (changes[i] > 0) gains += changes[i];
-    else losses += Math.abs(changes[i]);
+  const ch = prices.slice(1).map((p, i) => p - prices[i]);
+  let g = 0, l = 0;
+  for (let i = 0; i < period; i++) { if (ch[i] > 0) g += ch[i]; else l += Math.abs(ch[i]); }
+  let ag = g / period, al = l / period;
+  for (let i = period; i < ch.length; i++) {
+    ag = (ag * (period - 1) + (ch[i] > 0 ? ch[i] : 0)) / period;
+    al = (al * (period - 1) + (ch[i] < 0 ? Math.abs(ch[i]) : 0)) / period;
   }
-  let avgGain = gains / period;
-  let avgLoss = losses / period;
-  for (let i = period; i < changes.length; i++) {
-    avgGain = (avgGain * (period - 1) + (changes[i] > 0 ? changes[i] : 0)) / period;
-    avgLoss = (avgLoss * (period - 1) + (changes[i] < 0 ? Math.abs(changes[i]) : 0)) / period;
-  }
-  if (avgLoss === 0) return 100;
-  return Math.round(100 - 100 / (1 + avgGain / avgLoss));
+  if (al === 0) return 100;
+  return Math.round(100 - 100 / (1 + ag / al));
 }
 
-export function analyzePriceAction(
-  history: HistoryPoint[],
-  currentPrice: number,
-  timeframe: Timeframe
-): StrategyAnalysis {
-  if (history.length < 10) {
-    return {
-      name: "Price Action",
-      direction: "NEUTRAL",
-      signal: "Données insuffisantes pour l'analyse Price Action",
-      confidence: 30,
-      details: [],
-      timeframe,
-    };
-  }
+export function analyzePriceAction(history: HistoryPoint[], currentPrice: number, timeframe: Timeframe): StrategyAnalysis {
+  if (history.length < 10) return { name: "Price Action", direction: "NEUTRAL", signal: "Données insuffisantes", confidence: 30, details: [], timeframe };
 
-  const prices = history.map((h) => h.price);
+  const prices = history.map(h => h.price);
   const details: string[] = [];
   let score = 0;
 
-  // Structure de marché
-  const swingPoints: number[] = [];
+  // Swing highs detection
+  const swings: number[] = [];
   for (let i = 2; i < prices.length - 2; i++) {
-    if (prices[i] > prices[i-1] && prices[i] > prices[i-2] &&
-        prices[i] > prices[i+1] && prices[i] > prices[i+2]) {
-      swingPoints.push(prices[i]);
-    }
+    if (prices[i] > prices[i-1] && prices[i] > prices[i-2] && prices[i] > prices[i+1] && prices[i] > prices[i+2])
+      swings.push(prices[i]);
   }
-  const recentHighs = swingPoints.slice(-3);
+  const recentHighs = swings.slice(-3);
   if (recentHighs.length >= 2) {
-    const isHH = recentHighs.every((v, i) => i === 0 || v > recentHighs[i - 1]);
-    const isLL = recentHighs.every((v, i) => i === 0 || v < recentHighs[i - 1]);
-    if (isHH) { score += 20; details.push("Structure haussière confirmée : sommets successifs croissants (Higher Highs)"); }
-    else if (isLL) { score -= 20; details.push("Structure baissière : sommets successifs décroissants (Lower Highs)"); }
+    if (recentHighs.every((v, i) => i === 0 || v > recentHighs[i-1])) { score += 22; details.push("Structure haussière : Higher Highs confirmés (HH/HL)"); }
+    else if (recentHighs.every((v, i) => i === 0 || v < recentHighs[i-1])) { score -= 22; details.push("Structure baissière : Lower Highs confirmés (LH/LL)"); }
   }
 
-  // Support/Résistance
-  const sortedPrices = [...prices].sort((a, b) => a - b);
-  const support    = sortedPrices[Math.floor(sortedPrices.length * 0.2)];
-  const resistance = sortedPrices[Math.floor(sortedPrices.length * 0.8)];
-  const range      = resistance - support;
-  const positionInRange = range > 0 ? (currentPrice - support) / range : 0.5;
+  // Key levels
+  const sorted = [...prices].sort((a, b) => a - b);
+  const support    = sorted[Math.floor(sorted.length * 0.2)];
+  const resistance = sorted[Math.floor(sorted.length * 0.8)];
+  const range = resistance - support;
+  const pos   = range > 0 ? (currentPrice - support) / range : 0.5;
 
-  if (positionInRange > 0.75) {
-    details.push(`Prix proche de la résistance ($${resistance.toFixed(2)}) — risque de rejet`);
-    score -= 10;
-  } else if (positionInRange < 0.25) {
-    details.push(`Prix sur le support ($${support.toFixed(2)}) — potentiel rebond`);
-    score += 10;
-  } else {
-    details.push(`Prix dans la zone médiane (support : $${support.toFixed(2)}, résistance : $${resistance.toFixed(2)})`);
-  }
+  if (pos > 0.78)      { score -= 12; details.push(`Résistance majeure à $${resistance.toFixed(0)} — risque de rejet`); }
+  else if (pos < 0.22) { score += 12; details.push(`Support clé à $${support.toFixed(0)} — zone d'achat institutionnel`); }
+  else details.push(`Prix en zone médiane (S: $${support.toFixed(0)} | R: $${resistance.toFixed(0)})`);
 
-  // Tendance récente
-  const lookback = Math.min(7, Math.floor(prices.length / 3));
-  const recentSlice = prices.slice(-lookback);
-  const trendPct = ((recentSlice[recentSlice.length - 1] - recentSlice[0]) / recentSlice[0]) * 100;
-  if (trendPct > 3) {
-    score += 15;
-    details.push(`Tendance haussière récente : +${trendPct.toFixed(1)}% sur les ${lookback} dernières périodes`);
-  } else if (trendPct < -3) {
-    score -= 15;
-    details.push(`Tendance baissière récente : ${trendPct.toFixed(1)}% sur les ${lookback} dernières périodes`);
-  } else {
-    details.push(`Consolidation : variation de ${trendPct.toFixed(1)}% — attente de breakout`);
-  }
+  // Recent trend
+  const lb = Math.min(7, Math.floor(prices.length / 3));
+  const recent = prices.slice(-lb);
+  const trendPct = ((recent[recent.length - 1] - recent[0]) / recent[0]) * 100;
+  if (trendPct > 3)       { score += 15; details.push(`Momentum haussier +${trendPct.toFixed(1)}% — tendance récente positive`); }
+  else if (trendPct < -3) { score -= 15; details.push(`Momentum baissier ${trendPct.toFixed(1)}% — tendance récente négative`); }
+  else details.push(`Consolidation (${trendPct.toFixed(1)}%) — marché en attente de catalyst`);
 
-  // Pattern detection
+  // Patterns
   const last5 = prices.slice(-5);
-  const peak   = Math.max(...last5);
-  const trough = Math.min(...last5);
-  let pattern: string | undefined;
+  const peak = Math.max(...last5), trough = Math.min(...last5);
   if (Math.abs(last5[1] - last5[3]) / peak < 0.02 && last5[2] < last5[1] && last5[2] < last5[3]) {
-    pattern = "Double Top";
-    score -= 15;
-    details.push("Pattern Double Top détecté — signal de retournement baissier");
-  } else if (Math.abs(last5[1] - last5[3]) / trough < 0.02 && last5[2] > last5[1] && last5[2] > last5[3]) {
-    pattern = "Double Bottom";
-    score += 15;
-    details.push("Pattern Double Bottom détecté — signal de retournement haussier");
+    score -= 15; details.push("Pattern Double Top — signal de retournement baissier");
+  } else if (Math.abs(last5[1] - last5[3]) / (trough || 1) < 0.02 && last5[2] > last5[1] && last5[2] > last5[3]) {
+    score += 15; details.push("Pattern Double Bottom — signal de retournement haussier");
   }
 
   const direction: Direction = score > 15 ? "BULLISH" : score < -15 ? "BEARISH" : "NEUTRAL";
-  const confidence = Math.min(85, Math.max(35, 50 + Math.abs(score)));
-
   return {
-    name: "Price Action",
-    direction,
-    signal: direction === "BULLISH" ? `Structure haussière — score +${score}` :
-             direction === "BEARISH" ? `Structure baissière — score ${score}` :
-             "Zone de consolidation — attente de signal clair",
-    confidence,
-    details,
-    timeframe,
-    pattern,
-    keyLevels: { support: [support], resistance: [resistance] },
-  } as PriceActionAnalysis;
+    name: "Price Action", direction,
+    signal: direction === "BULLISH" ? `Structure haussière confirmée (score: +${score})` :
+            direction === "BEARISH" ? `Structure baissière confirmée (score: ${score})` :
+            "Zone de consolidation — attente de signal directionnel",
+    confidence: Math.min(85, Math.max(35, 50 + Math.abs(score))), details, timeframe,
+  };
 }
 
-export function analyzeSMC(
-  history: HistoryPoint[],
-  currentPrice: number,
-  timeframe: Timeframe
-): StrategyAnalysis {
-  if (history.length < 15) {
-    return { name: "SMC", direction: "NEUTRAL", signal: "Données insuffisantes pour l'analyse SMC", confidence: 30, details: [], timeframe };
-  }
+export function analyzeSMC(history: HistoryPoint[], currentPrice: number, timeframe: Timeframe): StrategyAnalysis {
+  if (history.length < 15) return { name: "SMC", direction: "NEUTRAL", signal: "Données insuffisantes", confidence: 30, details: [], timeframe };
 
-  const prices = history.map((h) => h.price);
+  const prices = history.map(h => h.price);
   const details: string[] = [];
   let score = 0;
 
-  const recent   = prices.slice(-10);
-  const prevHigh = Math.max(...prices.slice(-20, -10));
-  const prevLow  = Math.min(...prices.slice(-20, -10));
-  const currHigh = Math.max(...recent);
-  const currLow  = Math.min(...recent);
+  const recent  = prices.slice(-10);
+  const prevH   = Math.max(...prices.slice(-20, -10));
+  const prevL   = Math.min(...prices.slice(-20, -10));
+  const currH   = Math.max(...recent);
+  const currL   = Math.min(...recent);
 
-  let structureBreak: "BOS" | "CHoCH" | null = null;
-  if (currHigh > prevHigh * 1.01) {
-    structureBreak = "BOS"; score += 25;
-    details.push(`BOS haussier confirmé : cassure du plafond précédent à $${prevHigh.toFixed(2)}`);
-  } else if (currLow < prevLow * 0.99) {
-    structureBreak = "BOS"; score -= 25;
-    details.push(`BOS baissier confirmé : cassure du plancher précédent à $${prevLow.toFixed(2)}`);
-  }
+  if (currH > prevH * 1.01) { score += 28; details.push(`BOS Haussier — cassure structurelle à $${prevH.toFixed(0)} (Smart Money acheteur)`); }
+  else if (currL < prevL * 0.99) { score -= 28; details.push(`BOS Baissier — cassure structurelle à $${prevL.toFixed(0)} (Smart Money vendeur)`); }
 
-  const midRecent  = (Math.max(...recent) + Math.min(...recent)) / 2;
-  const obBullish  = Math.min(...recent.slice(0, 5));
-  const obBearish  = Math.max(...recent.slice(0, 5));
+  const midR  = (Math.max(...recent) + Math.min(...recent)) / 2;
+  const obBull = Math.min(...recent.slice(0, 5));
+  const obBear = Math.max(...recent.slice(0, 5));
 
-  if (currentPrice > midRecent && currentPrice < obBearish) {
-    details.push(`Prix dans un Order Block baissier potentiel (~$${obBearish.toFixed(2)}) — surveiller un rejet`);
-    score -= 10;
-  } else if (currentPrice < midRecent && currentPrice > obBullish) {
-    details.push(`Prix sur un Order Block haussier potentiel (~$${obBullish.toFixed(2)}) — potentiel rebond institutionnel`);
-    score += 10;
-  }
+  if (currentPrice < midR && currentPrice > obBull) { score += 12; details.push(`Order Block haussier à $${obBull.toFixed(0)} — demande institutionnelle potentielle`); }
+  else if (currentPrice > midR && currentPrice < obBear) { score -= 12; details.push(`Order Block baissier à $${obBear.toFixed(0)} — offre institutionnelle potentielle`); }
 
   let fvgFound = false;
   for (let i = 2; i < prices.length - 1; i++) {
-    const gap    = prices[i + 1] - prices[i - 1];
-    const gapPct = Math.abs(gap) / prices[i - 1];
-    if (gapPct > 0.015 && !fvgFound) {
+    const gap = prices[i+1] - prices[i-1];
+    if (Math.abs(gap) / prices[i-1] > 0.015 && !fvgFound) {
       fvgFound = true;
-      if (gap > 0) { details.push("Fair Value Gap haussier détecté — déséquilibre institutionnel à combler vers le haut"); score += 12; }
-      else          { details.push("Fair Value Gap baissier détecté — déséquilibre de prix à combler vers le bas"); score -= 12; }
+      if (gap > 0) { details.push("Fair Value Gap haussier — déséquilibre institutionnel"); score += 10; }
+      else         { details.push("Fair Value Gap baissier — déséquilibre institutionnel"); score -= 10; }
       break;
     }
   }
 
   const equalHighs = prices.filter(p => Math.abs(p - Math.max(...prices)) / Math.max(...prices) < 0.005);
-  if (equalHighs.length >= 2) {
-    details.push(`Liquidité accumulée au-dessus ($${Math.max(...prices).toFixed(2)}) — cible potentielle pour les institutionnels`);
-  }
+  if (equalHighs.length >= 2) details.push(`Liquidité au-dessus ($${Math.max(...prices).toFixed(0)}) — cible institutionnelle`);
 
   const direction: Direction = score > 20 ? "BULLISH" : score < -20 ? "BEARISH" : "NEUTRAL";
-  const confidence = Math.min(82, Math.max(35, 45 + Math.abs(score)));
-
   return {
-    name: "SMC",
-    direction,
-    signal: direction === "BULLISH" ? `Structure institutionnelle haussière — ${structureBreak ?? "accumulation détectée"}` :
-             direction === "BEARISH" ? `Pression institutionnelle baissière — ${structureBreak ?? "distribution détectée"}` :
-             "Zone de consolidation — les institutionnels accumulent ou distribuent",
-    confidence,
-    details,
-    timeframe,
-    structureBreak,
-    orderBlocks: [
-      { price: obBullish, type: "bullish", strength: "strong" },
-      { price: obBearish, type: "bearish", strength: "weak" },
-    ],
-    fairValueGaps: [],
-    liquidityZones: [Math.max(...prices), Math.min(...prices)],
-  } as SMCAnalysis;
+    name: "SMC", direction,
+    signal: direction === "BULLISH" ? "Structure institutionnelle haussière — accumulation détectée" :
+            direction === "BEARISH" ? "Structure institutionnelle baissière — distribution détectée" :
+            "Consolidation — Smart Money en observation",
+    confidence: Math.min(82, Math.max(35, 45 + Math.abs(score))), details, timeframe,
+  };
 }
 
-export function analyzeRSI(
-  indicators: TechnicalIndicators,
-  currentPrice: number,
-  history: HistoryPoint[],
-  timeframe: Timeframe
-): StrategyAnalysis {
+export function analyzeRSI(indicators: TechnicalIndicators, currentPrice: number, history: HistoryPoint[], timeframe: Timeframe): StrategyAnalysis {
   const { rsi } = indicators;
   const details: string[] = [];
   let score = 0;
 
-  if (rsi > 70) {
-    score -= 20;
-    details.push(`RSI suracheté (${rsi}) — pression vendeuse probable, risque de correction`);
-  } else if (rsi > 60) {
-    score += 10;
-    details.push(`RSI en zone haussière (${rsi}) — momentum positif, surveiller la résistance à 70`);
-  } else if (rsi < 30) {
-    score += 20;
-    details.push(`RSI survendu (${rsi}) — potentiel rebond technique imminent`);
-  } else if (rsi < 40) {
-    score -= 10;
-    details.push(`RSI en zone baissière (${rsi}) — momentum négatif`);
-  } else {
-    details.push(`RSI neutre (${rsi}) — pas de signal extrême entre 40 et 60`);
-  }
+  if (rsi > 70)      { score -= 22; details.push(`RSI ${rsi} — Zone de surachat, pression vendeuse probable`); }
+  else if (rsi > 60) { score += 12; details.push(`RSI ${rsi} — Momentum haussier fort`); }
+  else if (rsi < 30) { score += 22; details.push(`RSI ${rsi} — Zone de survente, rebond technique probable`); }
+  else if (rsi < 40) { score -= 12; details.push(`RSI ${rsi} — Momentum baissier modéré`); }
+  else details.push(`RSI ${rsi} — Zone neutre (40–60)`);
 
-  // Divergence RSI/Prix (sans require dynamique)
+  // Divergence
   if (history.length >= 10) {
-    const prices       = history.map(h => h.price);
-    const recentPrices = prices.slice(-5);
-    const prevPrices   = prices.slice(-10, -5);
-    const priceUp      = recentPrices[recentPrices.length - 1] > prevPrices[0];
-    const prevRSI      = calculateRSIInline(prevPrices);
-
-    if (priceUp && indicators.rsi < prevRSI) {
-      score -= 15;
-      details.push("Divergence baissière RSI : le prix monte mais le RSI baisse — signe de faiblesse cachée");
-    } else if (!priceUp && indicators.rsi > prevRSI) {
-      score += 15;
-      details.push("Divergence haussière RSI : le prix baisse mais le RSI monte — force cachée");
-    }
+    const prices = history.map(h => h.price);
+    const priceUp = prices[prices.length - 1] > prices[prices.length - 6];
+    const prevRSI = calcRSIInline(prices.slice(-10, -5));
+    if (priceUp && rsi < prevRSI)   { score -= 14; details.push("Divergence baissière RSI — faiblesse cachée"); }
+    else if (!priceUp && rsi > prevRSI) { score += 14; details.push("Divergence haussière RSI — force cachée"); }
   }
 
-  if (rsi > 50) { score += 5; details.push("RSI au-dessus de 50 : les acheteurs dominent à court terme"); }
-  else          { score -= 5; details.push("RSI sous 50 : les vendeurs dominent à court terme"); }
+  if (rsi > 50) { score += 5; details.push("RSI > 50 : pression acheteuse dominante"); }
+  else          { score -= 5; details.push("RSI < 50 : pression vendeuse dominante"); }
 
   const direction: Direction = score > 15 ? "BULLISH" : score < -15 ? "BEARISH" : "NEUTRAL";
-  const confidence = Math.min(88, Math.max(35, 50 + Math.abs(score)));
-
   return {
-    name: "RSI",
-    direction,
-    signal: `RSI à ${rsi} — ${
-      rsi > 70 ? "Zone de surachat — attention au retournement" :
-      rsi < 30 ? "Zone de survente — rebond probable" :
-      rsi > 55 ? "Momentum haussier modéré" :
-      rsi < 45 ? "Momentum baissier modéré" :
-      "Zone neutre — pas de signal fort"
-    }`,
-    confidence,
-    details,
-    timeframe,
+    name: "RSI", direction,
+    signal: rsi > 70 ? `RSI ${rsi} — Surachat : retournement imminent` :
+            rsi < 30 ? `RSI ${rsi} — Survente : rebond probable` :
+            rsi > 55 ? `RSI ${rsi} — Momentum haussier modéré` :
+            rsi < 45 ? `RSI ${rsi} — Momentum baissier modéré` :
+            `RSI ${rsi} — Neutre`,
+    confidence: Math.min(88, Math.max(35, 50 + Math.abs(score))), details, timeframe,
   };
 }
 
-export function analyzeMACD(
-  indicators: TechnicalIndicators,
-  currentPrice: number,
-  timeframe: Timeframe
-): StrategyAnalysis {
+export function analyzeMACD(indicators: TechnicalIndicators, currentPrice: number, timeframe: Timeframe): StrategyAnalysis {
   const { macd } = indicators;
   const details: string[] = [];
   let score = 0;
 
-  if (macd.macdLine > macd.signalLine) {
-    score += 15;
-    details.push(`MACD (${macd.macdLine.toFixed(4)}) au-dessus de la ligne Signal (${macd.signalLine.toFixed(4)}) — tendance haussière`);
-  } else {
-    score -= 15;
-    details.push(`MACD (${macd.macdLine.toFixed(4)}) sous la ligne Signal (${macd.signalLine.toFixed(4)}) — tendance baissière`);
-  }
+  if (macd.macdLine > macd.signalLine) { score += 15; details.push(`MACD au-dessus du Signal — tendance haussière active`); }
+  else { score -= 15; details.push(`MACD sous le Signal — tendance baissière active`); }
 
-  if (macd.crossover === "bullish") {
-    score += 25;
-    details.push("Croisement haussier MACD x Signal — signal d'achat fort, changement de tendance probable");
-  } else if (macd.crossover === "bearish") {
-    score -= 25;
-    details.push("Croisement baissier MACD x Signal — signal de vente fort, inversion de tendance probable");
-  }
+  if (macd.crossover === "bullish") { score += 28; details.push("Croisement haussier MACD × Signal — signal d'achat majeur"); }
+  else if (macd.crossover === "bearish") { score -= 28; details.push("Croisement baissier MACD × Signal — signal de vente majeur"); }
 
-  if (macd.histogram > 0) {
-    score += 10;
-    details.push(`Histogramme positif (${macd.histogram.toFixed(4)}) — pression haussière en cours`);
-  } else {
-    score -= 10;
-    details.push(`Histogramme négatif (${macd.histogram.toFixed(4)}) — pression baissière en cours`);
-  }
+  if (macd.histogram > 0) { score += 10; details.push(`Histogramme positif (${macd.histogram.toFixed(6)}) — accélération haussière`); }
+  else { score -= 10; details.push(`Histogramme négatif (${macd.histogram.toFixed(6)}) — accélération baissière`); }
 
-  if (macd.macdLine > 0) {
-    score += 8;
-    details.push("MACD positif : momentum haussier dominant sur la période analysée");
-  } else {
-    score -= 8;
-    details.push("MACD négatif : momentum baissier dominant sur la période analysée");
-  }
+  if (macd.macdLine > 0) { score += 8; details.push("MACD > 0 : momentum haussier structurel"); }
+  else { score -= 8; details.push("MACD < 0 : momentum baissier structurel"); }
 
   const direction: Direction = score > 20 ? "BULLISH" : score < -20 ? "BEARISH" : "NEUTRAL";
-  const confidence = Math.min(90, Math.max(35, 45 + Math.abs(score) * 0.8));
-
   return {
-    name: "MACD",
-    direction,
-    signal:
-      macd.crossover === "bullish" ? "Croisement haussier actif — signal d'achat confirmé" :
-      macd.crossover === "bearish" ? "Croisement baissier actif — signal de vente confirmé" :
-      macd.macdLine > macd.signalLine ? "MACD au-dessus du signal — tendance haussière en cours" :
-      "MACD sous le signal — tendance baissière en cours",
-    confidence,
-    details,
-    timeframe,
+    name: "MACD", direction,
+    signal: macd.crossover === "bullish" ? "Croisement haussier — achat confirmé" :
+            macd.crossover === "bearish" ? "Croisement baissier — vente confirmée" :
+            macd.macdLine > macd.signalLine ? "MACD > Signal — tendance haussière" :
+            "MACD < Signal — tendance baissière",
+    confidence: Math.min(90, Math.max(35, 45 + Math.abs(score) * 0.8)), details, timeframe,
   };
 }
 
-// ─── NOUVEAU : Analyse Ichimoku ──────────────────────────────────────────────
-export function analyzeIchimoku(
-  indicators: TechnicalIndicators,
-  currentPrice: number,
-  timeframe: Timeframe
-): StrategyAnalysis {
+export function analyzeIchimoku(indicators: TechnicalIndicators, currentPrice: number, timeframe: Timeframe): StrategyAnalysis {
   const ichi = indicators.ichimoku;
   const details: string[] = [];
   let score = 0;
 
-  // Position par rapport au nuage
-  if (ichi.pricePosition === "above_cloud") {
-    score += 25;
-    details.push(`Prix au-dessus du nuage Ichimoku ${ichi.cloudColor === "bullish" ? "haussier" : "baissier"} — tendance dominante haussière`);
-  } else if (ichi.pricePosition === "below_cloud") {
-    score -= 25;
-    details.push(`Prix sous le nuage Ichimoku — tendance dominante baissière, résistance forte`);
-  } else {
-    details.push(`Prix dans le nuage Ichimoku — zone d'incertitude, volatilité probable`);
-  }
+  if (ichi.pricePosition === "above_cloud") { score += 26; details.push(`Prix au-dessus du nuage ${ichi.cloudColor === "bullish" ? "haussier" : "baissier"} — bullish structurel`); }
+  else if (ichi.pricePosition === "below_cloud") { score -= 26; details.push("Prix sous le nuage — bearish structurel, résistance forte"); }
+  else details.push("Prix dans le nuage — incertitude, volatilité probable");
 
-  // Croisement TK (Tenkan/Kijun)
-  if (ichi.tenkan > ichi.kijun) {
-    score += 15;
-    details.push(`Tenkan (${ichi.tenkan.toFixed(2)}) au-dessus de Kijun (${ichi.kijun.toFixed(2)}) — momentum haussier court terme`);
-  } else {
-    score -= 15;
-    details.push(`Tenkan sous Kijun — momentum baissier, pas d'entrée recommandée`);
-  }
+  if (ichi.tenkan > ichi.kijun) { score += 15; details.push(`TK Cross haussier (T:${ichi.tenkan.toFixed(0)} > K:${ichi.kijun.toFixed(0)})`); }
+  else { score -= 15; details.push(`TK Cross baissier (T:${ichi.tenkan.toFixed(0)} < K:${ichi.kijun.toFixed(0)})`); }
 
-  // Couleur du nuage (tendance future)
-  if (ichi.cloudColor === "bullish") {
-    score += 10;
-    details.push("Nuage futur haussier (Senkou A > Senkou B) — support futur solide");
-  } else {
-    score -= 10;
-    details.push("Nuage futur baissier (Senkou B > Senkou A) — résistance future");
-  }
+  if (ichi.cloudColor === "bullish") { score += 10; details.push("Nuage futur haussier — support solide en vue"); }
+  else { score -= 10; details.push("Nuage futur baissier — résistance en vue"); }
 
-  // Chikou (lagging span)
-  const chikouAbove = ichi.chikou > currentPrice * 0.98;
-  if (chikouAbove) {
-    score += 8;
-    details.push("Chikou Span au-dessus du prix passé — confirmation haussière triple");
-  } else {
-    score -= 8;
-  }
+  if (ichi.chikou > currentPrice * 0.98) { score += 8; details.push("Chikou au-dessus du prix passé — confirmation triple"); }
+  else score -= 8;
 
   const direction: Direction = score > 20 ? "BULLISH" : score < -20 ? "BEARISH" : "NEUTRAL";
-  const confidence = Math.min(88, Math.max(35, 45 + Math.abs(score) * 0.7));
-
   return {
-    name: "Ichimoku",
-    direction,
-    signal:
-      ichi.pricePosition === "above_cloud" ? `Au-dessus du nuage ${ichi.cloudColor === "bullish" ? "haussier" : ""} — tendance confirmée` :
-      ichi.pricePosition === "below_cloud" ? "Sous le nuage — bearish structurel" :
-      "Dans le nuage — zone de transition",
-    confidence,
-    details,
-    timeframe,
+    name: "Ichimoku", direction,
+    signal: ichi.pricePosition === "above_cloud" ? "Au-dessus du nuage — tendance confirmée" :
+            ichi.pricePosition === "below_cloud" ? "Sous le nuage — bearish structurel" :
+            "Dans le nuage — zone de transition",
+    confidence: Math.min(88, Math.max(35, 45 + Math.abs(score) * 0.7)), details, timeframe,
   };
 }
 
-// ─── NOUVEAU : Analyse ADX ───────────────────────────────────────────────────
-export function analyzeADX(
-  indicators: TechnicalIndicators,
-  timeframe: Timeframe
-): StrategyAnalysis {
+export function analyzeADX(indicators: TechnicalIndicators, timeframe: Timeframe): StrategyAnalysis {
   const adx = indicators.adx;
   const details: string[] = [];
   let score = 0;
 
-  // Force de la tendance
-  if (adx.adx > 40) {
-    details.push(`ADX très fort (${adx.adx}) — tendance puissante et fiable, suivre la direction`);
-    score += adx.trend === "BULLISH" ? 30 : -30;
-  } else if (adx.adx > 25) {
-    details.push(`ADX fort (${adx.adx}) — tendance confirmée, momentum solide`);
-    score += adx.trend === "BULLISH" ? 20 : -20;
-  } else if (adx.adx < 20) {
-    details.push(`ADX faible (${adx.adx}) — pas de tendance claire, marché en range — RSI et oscillateurs plus fiables`);
-  } else {
-    details.push(`ADX modéré (${adx.adx}) — tendance émergente, surveiller la confirmation`);
-  }
+  if (adx.adx > 40)       { score += adx.trend === "BULLISH" ? 32 : -32; details.push(`ADX ${adx.adx} — Tendance très forte, suivre la direction`); }
+  else if (adx.adx > 25)  { score += adx.trend === "BULLISH" ? 20 : -20; details.push(`ADX ${adx.adx} — Tendance confirmée`); }
+  else if (adx.adx < 20)  { details.push(`ADX ${adx.adx} — Pas de tendance, marché en range (oscillateurs privilégiés)`); }
+  else details.push(`ADX ${adx.adx} — Tendance émergente`);
 
-  // +DI vs -DI
-  if (adx.plusDI > adx.minusDI) {
-    score += 10;
-    details.push(`+DI (${adx.plusDI}) > -DI (${adx.minusDI}) — pression achetrice dominante`);
-  } else {
-    score -= 10;
-    details.push(`-DI (${adx.minusDI}) > +DI (${adx.plusDI}) — pression vendeuse dominante`);
-  }
+  if (adx.plusDI > adx.minusDI) { score += 10; details.push(`+DI (${adx.plusDI}) > -DI (${adx.minusDI}) — pression acheteuse`); }
+  else { score -= 10; details.push(`-DI (${adx.minusDI}) > +DI (${adx.plusDI}) — pression vendeuse`); }
 
-  // Régime de marché
   const regimeLabels: Record<string, string> = {
-    trending_bull: "Tendance haussière active",
-    trending_bear: "Tendance baissière active",
-    ranging:       "Marché en range — oscillateurs privilégiés",
-    volatile:      "Marché volatil — prudence, positions réduites",
-    unknown:       "Régime indéterminé",
+    trending_bull: "Tendance haussière forte", trending_bear: "Tendance baissière forte",
+    ranging: "Marché en range", volatile: "Marché volatil — prudence", unknown: "Régime indéterminé",
   };
-  details.push(`Régime : ${regimeLabels[adx.regime] ?? adx.regime}`);
+  details.push(`Régime : ${regimeLabels[adx.regime]}`);
 
   const direction: Direction = score > 15 ? "BULLISH" : score < -15 ? "BEARISH" : "NEUTRAL";
-  const confidence = Math.min(85, Math.max(30, 40 + Math.abs(adx.adx - 20) * 0.8));
-
   return {
-    name: "ADX",
-    direction,
-    signal:
-      adx.regime === "ranging"       ? `Range détecté (ADX ${adx.adx}) — oscillateurs privilégiés` :
-      adx.regime === "trending_bull" ? `Tendance haussière forte (ADX ${adx.adx})` :
-      adx.regime === "trending_bear" ? `Tendance baissière forte (ADX ${adx.adx})` :
-      adx.regime === "volatile"      ? `Marché volatil (ADX ${adx.adx}) — prudence` :
-      `ADX ${adx.adx} — tendance ${adx.trend.toLowerCase()}`,
-    confidence,
-    details,
-    timeframe,
+    name: "ADX", direction,
+    signal: adx.regime === "ranging"       ? `Range (ADX ${adx.adx}) — oscillateurs plus fiables` :
+            adx.regime === "trending_bull" ? `Tendance haussière forte (ADX ${adx.adx})` :
+            adx.regime === "trending_bear" ? `Tendance baissière forte (ADX ${adx.adx})` :
+            adx.regime === "volatile"      ? `Volatilité élevée (ADX ${adx.adx})` :
+            `ADX ${adx.adx}`,
+    confidence: Math.min(85, Math.max(30, 40 + Math.abs(adx.adx - 20) * 0.8)), details, timeframe,
   };
 }

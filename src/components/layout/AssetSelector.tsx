@@ -1,165 +1,133 @@
 "use client";
-
 import type { Asset, Timeframe } from "@/types";
 
-const ASSETS: { id: Asset; label: string; icon: string }[] = [
-  { id: "BTC",    label: "Bitcoin",  icon: "B" },
-  { id: "ETH",    label: "Ethereum", icon: "E" },
-  { id: "SOL",    label: "Solana",   icon: "S" },
-  { id: "XAUUSD", label: "Or",       icon: "Au" },
+const ASSETS: { id: Asset; label: string; symbol: string; color: string }[] = [
+  { id: "BTC",    label: "Bitcoin", symbol: "₿",  color: "#f7931a" },
+  { id: "XAUUSD", label: "Or",      symbol: "Au", color: "#ffd700" },
 ];
 
 const TIMEFRAMES: { id: Timeframe; label: string; desc: string }[] = [
   { id: "4H", label: "4H",    desc: "Court terme" },
-  { id: "1J", label: "1J",    desc: "Journalier" },
+  { id: "1J", label: "1J",    desc: "Journalier"  },
   { id: "1W", label: "1 Sem", desc: "Hebdomadaire" },
 ];
 
-interface AssetSelectorProps {
+interface Props {
   selectedAsset: Asset;
   selectedTimeframe: Timeframe;
-  onSelectAsset: (asset: Asset) => void;
+  onSelectAsset: (a: Asset) => void;
   onSelectTimeframe: (tf: Timeframe) => void;
 }
 
-export default function AssetSelector({
-  selectedAsset, selectedTimeframe, onSelectAsset, onSelectTimeframe,
-}: AssetSelectorProps) {
+export default function AssetSelector({ selectedAsset, selectedTimeframe, onSelectAsset, onSelectTimeframe }: Props) {
   return (
     <>
-      <div className="ft-as-root">
-        {/* Actifs */}
-        <div className="ft-as-row">
-          <span className="ft-as-label">Actif</span>
-          <div className="ft-as-assets">
-            {ASSETS.map((a) => {
-              const active = selectedAsset === a.id;
-              return (
-                <button
-                  key={a.id}
-                  onClick={() => onSelectAsset(a.id)}
-                  className={active ? "ft-as-btn ft-as-btn-active" : "ft-as-btn"}
-                >
-                  <span className="ft-as-icon">{a.icon}</span>
-                  <span className="ft-as-name">{a.id}</span>
-                </button>
-              );
-            })}
-          </div>
+      <div className="ft-asel-root">
+        {/* Asset buttons */}
+        <div className="ft-asel-assets">
+          {ASSETS.map(a => {
+            const active = selectedAsset === a.id;
+            return (
+              <button key={a.id} onClick={() => onSelectAsset(a.id)}
+                className="ft-asel-btn" data-active={active}
+                style={{ "--asset-color": a.color } as React.CSSProperties}>
+                <span className="ft-asel-symbol">{a.symbol}</span>
+                <span className="ft-asel-id">{a.id}</span>
+                <span className="ft-asel-name">{a.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Timeframes */}
-        <div className="ft-as-row">
-          <span className="ft-as-label">Période</span>
+        <div className="ft-asel-divider" />
+
+        {/* Timeframe tabs */}
+        <div className="ft-tf-wrap">
+          <span className="ft-tf-label">Période</span>
           <div className="ft-tf-group">
-            {TIMEFRAMES.map((tf) => {
-              const active = selectedTimeframe === tf.id;
-              return (
-                <button
-                  key={tf.id}
-                  onClick={() => onSelectTimeframe(tf.id)}
-                  className={active ? "ft-tf-btn ft-tf-btn-active" : "ft-tf-btn"}
-                  title={tf.desc}
-                >
-                  {tf.label}
-                </button>
-              );
-            })}
+            {TIMEFRAMES.map(tf => (
+              <button key={tf.id} onClick={() => onSelectTimeframe(tf.id)}
+                className="ft-tf-btn" data-active={selectedTimeframe === tf.id}
+                title={tf.desc}>
+                {tf.label}
+              </button>
+            ))}
           </div>
-          <span className="ft-as-desc">
-            {TIMEFRAMES.find((t) => t.id === selectedTimeframe)?.desc}
+          <span className="ft-tf-desc">
+            {TIMEFRAMES.find(t => t.id === selectedTimeframe)?.desc}
           </span>
         </div>
       </div>
 
       <style>{`
-        .ft-as-root {
-          display: flex;
-          flex-direction: column;
-          gap: 0.6rem;
+        .ft-asel-root {
+          display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
         }
-        .ft-as-row {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          flex-wrap: wrap;
+        .ft-asel-assets { display: flex; gap: 0.45rem; }
+        .ft-asel-btn {
+          display: flex; align-items: center; gap: 0.45rem;
+          padding: 0.5rem 1rem; border-radius: 8px;
+          border: 1px solid var(--border); background: var(--bg-card);
+          color: var(--text-secondary); cursor: pointer;
+          font-family: 'Rajdhani', sans-serif; font-size: 0.8rem; font-weight: 500;
+          transition: all 0.18s ease; white-space: nowrap;
+          position: relative; overflow: hidden;
         }
-        .ft-as-label {
-          font-size: 0.6rem; font-weight: 700;
-          letter-spacing: 0.12em; text-transform: uppercase;
-          color: var(--text-muted);
-          min-width: 44px;
+        .ft-asel-btn::before {
+          content: ''; position: absolute; inset: 0;
+          background: var(--asset-color); opacity: 0;
+          transition: opacity 0.18s ease;
         }
-        .ft-as-assets {
-          display: flex;
-          gap: 0.4rem;
-          flex-wrap: wrap;
-        }
-        .ft-as-btn {
-          display: flex; align-items: center; gap: 0.35rem;
-          padding: 0.4rem 0.85rem;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-card);
-          color: var(--text-secondary);
-          font-family: var(--font-syne), sans-serif;
-          font-size: 0.75rem; font-weight: 500;
-          cursor: pointer;
-          transition: all 0.18s ease;
-          white-space: nowrap;
-        }
-        .ft-as-btn:hover {
-          border-color: var(--border-strong);
-          color: var(--text-primary);
-        }
-        .ft-as-btn-active {
-          background: var(--accent-subtle) !important;
-          border-color: var(--border-strong) !important;
-          color: var(--text-accent) !important;
+        .ft-asel-btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+        .ft-asel-btn:hover::before { opacity: 0.05; }
+        .ft-asel-btn[data-active="true"] {
+          border-color: var(--asset-color, var(--accent-border)) !important;
+          background: rgba(var(--asset-r, 0), var(--asset-g, 240), var(--asset-b, 160), 0.08) !important;
+          color: var(--asset-color, var(--text-accent)) !important;
           font-weight: 700 !important;
-          box-shadow: 0 0 0 1px var(--border-strong), 0 2px 8px var(--accent-glow);
+          box-shadow: 0 0 12px color-mix(in srgb, var(--asset-color, var(--accent)) 20%, transparent);
         }
-        .ft-as-icon {
-          font-family: var(--font-mono), monospace;
-          font-size: 0.65rem; opacity: 0.7;
+        .ft-asel-btn[data-active="true"]::before { opacity: 0.07; }
+        .ft-asel-symbol {
+          font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
+          opacity: 0.8; position: relative; z-index: 1;
         }
+        .ft-asel-id {
+          font-family: 'Orbitron', monospace; font-size: 0.65rem; font-weight: 700;
+          letter-spacing: 0.05em; position: relative; z-index: 1;
+        }
+        .ft-asel-name {
+          font-size: 0.7rem; opacity: 0.65; position: relative; z-index: 1;
+        }
+        .ft-asel-divider { width: 1px; height: 28px; background: var(--border-subtle); flex-shrink: 0; }
+        .ft-tf-wrap { display: flex; align-items: center; gap: 0.55rem; }
+        .ft-tf-label { font-family: 'Orbitron', monospace; font-size: 0.5rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); }
         .ft-tf-group {
-          display: flex;
-          background: var(--bg-card);
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          padding: 3px;
-          gap: 2px;
+          display: flex; background: var(--bg-card); border: 1px solid var(--border);
+          border-radius: 7px; padding: 3px; gap: 2px;
         }
         .ft-tf-btn {
-          padding: 0.28rem 0.8rem;
-          border-radius: 5px;
-          border: none;
-          background: transparent;
-          color: var(--text-muted);
-          font-family: var(--font-syne), sans-serif;
-          font-size: 0.7rem; font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          white-space: nowrap;
+          padding: 0.28rem 0.85rem; border-radius: 5px; border: none;
+          background: transparent; color: var(--text-muted);
+          font-family: 'Rajdhani', sans-serif; font-size: 0.72rem; font-weight: 600;
+          cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
         }
         .ft-tf-btn:hover { color: var(--text-secondary); background: var(--accent-subtle); }
-        .ft-tf-btn-active {
+        .ft-tf-btn[data-active="true"] {
           background: var(--accent) !important;
-          color: #050a0e !important;
+          color: #020c18 !important;
+          font-family: 'Orbitron', monospace !important;
           font-weight: 700 !important;
+          font-size: 0.6rem !important;
+          box-shadow: 0 0 8px var(--accent-glow);
         }
-        .ft-as-desc {
-          font-size: 0.6rem; color: var(--text-muted);
-        }
-
-        /* Mobile : compacter */
-        @media (max-width: 480px) {
-          .ft-as-label { display: none; }
-          .ft-as-btn { padding: 0.38rem 0.65rem; font-size: 0.7rem; }
-          .ft-as-icon { display: none; }
-          .ft-tf-btn { padding: 0.28rem 0.6rem; }
-          .ft-as-desc { display: none; }
+        .ft-tf-desc { font-size: 0.58rem; color: var(--text-muted); font-family: 'Rajdhani', sans-serif; }
+        @media (max-width: 600px) {
+          .ft-asel-name { display: none; }
+          .ft-asel-divider { display: none; }
+          .ft-tf-label { display: none; }
+          .ft-tf-desc  { display: none; }
+          .ft-asel-btn { padding: 0.45rem 0.7rem; }
         }
       `}</style>
     </>

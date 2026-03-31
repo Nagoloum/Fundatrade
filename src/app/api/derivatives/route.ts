@@ -1,26 +1,14 @@
 import { NextResponse } from "next/server";
 
-// ═══════════════════════════════════════════════════════════════════════════
-// DÉRIVÉS — Bybit API (gratuit, sans clé, non bloqué sur Vercel)
-// Funding Rate, Open Interest, Long/Short Ratio
-// ═══════════════════════════════════════════════════════════════════════════
-
-const BYBIT_SYMBOL: Record<string, string> = {
-  BTC: "BTCUSDT",
-  ETH: "ETHUSDT",
-  SOL: "SOLUSDT",
-};
-
+const BYBIT_SYMBOL: Record<string, string> = { BTC: "BTCUSDT" };
 const BYBIT = "https://api.bybit.com/v5/market";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const asset = searchParams.get("asset") || "BTC";
+  const asset  = searchParams.get("asset") || "BTC";
   const symbol = BYBIT_SYMBOL[asset];
 
-  if (!symbol) {
-    return NextResponse.json({ error: "Asset non supporté pour les dérivés" }, { status: 400 });
-  }
+  if (!symbol) return NextResponse.json({ error: "Asset non supporté" }, { status: 400 });
 
   try {
     const [fundingRes, oiRes, lsRes] = await Promise.all([
@@ -35,53 +23,44 @@ export async function GET(req: Request) {
       lsRes.ok      ? lsRes.json()      : null,
     ]);
 
-    const ticker    = fundingData?.result?.list?.[0];
-    const oiList    = oiData?.result?.list;
-    const lsList    = lsData?.result?.list;
+    const ticker   = fundingData?.result?.list?.[0];
+    const oiList   = oiData?.result?.list;
+    const lsList   = lsData?.result?.list;
 
-    const fundingRate    = ticker?.fundingRate    ? parseFloat(ticker.fundingRate) * 100 : undefined;
-    const openInterest   = ticker?.openInterestValue ? parseFloat(ticker.openInterestValue) : undefined;
+    const fundingRate  = ticker?.fundingRate  ? parseFloat(ticker.fundingRate) * 100 : undefined;
+    const openInterest = ticker?.openInterestValue ? parseFloat(ticker.openInterestValue) : undefined;
 
-    // OI change 1h
     let openInterestChange24h: number | undefined;
-    if (oiList && oiList.length >= 2) {
+    if (oiList?.length >= 2) {
       const latest = parseFloat(oiList[0]?.openInterest ?? "0");
       const prev   = parseFloat(oiList[1]?.openInterest ?? "0");
       if (prev > 0) openInterestChange24h = parseFloat(((latest - prev) / prev * 100).toFixed(2));
     }
 
     const longShortRatio = lsList?.[0]?.buyRatio
-      ? parseFloat(parseFloat(lsList[0].buyRatio).toFixed(3))
-      : undefined;
+      ? parseFloat(parseFloat(lsList[0].buyRatio).toFixed(3)) : undefined;
 
-    // Interpréter le funding rate
     const signals: string[] = [];
     if (fundingRate !== undefined) {
-      if (fundingRate > 0.1) signals.push(`Funding rate élevé (+${fundingRate.toFixed(3)}%) — marché surpositionné long, risque de squeeze`);
-      else if (fundingRate < -0.05) signals.push(`Funding rate négatif (${fundingRate.toFixed(3)}%) — shorts dominants, potentiel short squeeze`);
-      else signals.push(`Funding rate neutre (${fundingRate?.toFixed(3)}%) — équilibre longs/shorts`);
+      if (fundingRate > 0.1)   signals.push(`Funding élevé (+${fundingRate.toFixed(3)}%) — marché surpositionné long`);
+      else if (fundingRate < -0.05) signals.push(`Funding négatif (${fundingRate.toFixed(3)}%) — shorts dominants, potentiel squeeze`);
+      else signals.push(`Funding neutre (${fundingRate?.toFixed(3)}%)`);
     }
     if (openInterestChange24h !== undefined) {
-      if (openInterestChange24h > 5) signals.push(`OI en hausse (+${openInterestChange24h}%) — nouvelle liquidité entrant sur le marché`);
-      else if (openInterestChange24h < -5) signals.push(`OI en baisse (${openInterestChange24h}%) — positions fermées, déleveraging en cours`);
+      if (openInterestChange24h > 5)  signals.push(`OI +${openInterestChange24h}% — nouvelles positions ouvertes`);
+      else if (openInterestChange24h < -5) signals.push(`OI ${openInterestChange24h}% — déleveraging en cours`);
     }
     if (longShortRatio !== undefined) {
       const lsPct = (longShortRatio * 100).toFixed(1);
-      if (longShortRatio > 0.65) signals.push(`Ratio Long/Short déséquilibré (${lsPct}% longs) — marché suracheté côté dérivés`);
-      else if (longShortRatio < 0.40) signals.push(`Majorité de shorts (${lsPct}% longs) — position contrariante possible`);
+      if (longShortRatio > 0.65) signals.push(`${lsPct}% longs — marché suracheté côté dérivés`);
+      else if (longShortRatio < 0.40) signals.push(`${lsPct}% longs — majorité de shorts`);
     }
 
     return NextResponse.json({
-      fundingRate,
-      openInterest,
-      openInterestChange24h,
-      longShortRatio,
-      signals,
+      fundingRate, openInterest, openInterestChange24h, longShortRatio, signals,
       timestamp: new Date().toISOString(),
     });
-
   } catch (error: any) {
-    console.error("[API/derivatives]", error.message);
-    return NextResponse.json({ error: `Erreur dérivés : ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Derivatives error: ${error.message}` }, { status: 500 });
   }
 }
