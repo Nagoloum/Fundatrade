@@ -1,27 +1,27 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import type { Asset, Timeframe, MarketData, MacroData, Prediction, NewsItem, SentimentData, DerivativesData, EconomicEvent, WeeklyPrediction } from "@/types";
+import type { Asset, DerivativesData, EconomicEvent, MacroData, MarketData, NewsItem, Prediction, SentimentData, Timeframe, WeeklyPrediction } from "@/types";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // Components
-import Header          from "@/components/layout/Header";
-import AssetSelector   from "@/components/layout/AssetSelector";
-import PriceCard       from "@/components/market/PriceCard";
-import PriceChart      from "@/components/market/PriceChart";
-import PredictionCard  from "@/components/prediction/PredictionCard";
-import WeeklyObjectiveCard from "@/components/prediction/WeeklyObjectiveCard";
-import StrategiesPanel from "@/components/strategy/StrategiesPanel";
-import SentimentPanel  from "@/components/sentiment/SentimentPanel";
 import DerivativesPanel from "@/components/derivatives/DerivativesPanel";
-import MacroPanel      from "@/components/macro/MacroPanel";
-import NewsFeed        from "@/components/news/NewsFeed";
 import EconomicCalendarPanel from "@/components/economic/EconomicCalendarPanel";
-import HistoryPanel    from "@/components/history/HistoryPanel";
+import HistoryPanel from "@/components/history/HistoryPanel";
+import AssetSelector from "@/components/layout/AssetSelector";
+import Header from "@/components/layout/Header";
+import MacroPanel from "@/components/macro/MacroPanel";
+import PriceCard from "@/components/market/PriceCard";
+import PriceChart from "@/components/market/PriceChart";
+import NewsFeed from "@/components/news/NewsFeed";
+import PredictionCard from "@/components/prediction/PredictionCard";
+import WeeklyObjectiveCard from "@/components/prediction/WeeklyObjectiveCard";
+import SentimentPanel from "@/components/sentiment/SentimentPanel";
+import StrategiesPanel from "@/components/strategy/StrategiesPanel";
 import { ErrorBanner, LoadingSkeleton } from "@/components/ui/Feedback";
 
 // Lib
-import { fetchCrypto, fetchGold, fetchMacro, fetchNews, fetchPrediction, fetchSentiment, fetchDerivatives, fetchEconomicCalendar, fetchWeeklyPrediction } from "@/lib/api/client";
-import { getWeeklyPrediction, saveWeeklyPrediction, updateWeeklyPnL, expireOldPredictions, getCurrentWeekId } from "@/lib/weekly/weeklyStorage";
+import { fetchCrypto, fetchDerivatives, fetchEconomicCalendar, fetchGold, fetchMacro, fetchNews, fetchPrediction, fetchSentiment, fetchWeeklyPrediction } from "@/lib/api/client";
+import { expireOldPredictions, getWeeklyPrediction, saveWeeklyPrediction, updateWeeklyPnL } from "@/lib/weekly/weeklyStorage";
 
 // Refresh intervals
 const MACRO_MS = 300_000;   // 5 min
@@ -32,6 +32,8 @@ const PRED_MS  = 30_000;    // 30 sec
 // Kraken WS pairs
 const WS_PAIR: Record<Asset, string | null> = {
   BTC:    "XBT/USD",
+  ETH:    "XETH/USD",
+  SOL:    "XSOL/USD",
   XAUUSD: null,
 };
 

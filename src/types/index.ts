@@ -1,4 +1,4 @@
-export type Asset = "XAUUSD" | "BTC";
+export type Asset = "XAUUSD" | "BTC" | "ETH" | "SOL";
 export type Timeframe = "4H" | "1J" | "1W";
 export type Theme = "dark" | "light";
 export type Direction = "BULLISH" | "BEARISH" | "NEUTRAL";
@@ -10,13 +10,17 @@ export type WeeklyStatus = "active" | "target_hit" | "stop_hit" | "expired";
 export interface HistoryPoint { date: string; price: number; volume?: number; }
 
 export interface MarketData {
-  marketCap: any;
-  fullyDilutedValuation: any;
-  circulatingSupply: import("react").JSX.Element;
-  dominance: import("react").JSX.Element;
-  name: string; price: number; change24h: number;
-  high24h?: number; low24h?: number;
-  volume24h?: number; history: HistoryPoint[];
+  marketCap?: number;
+  fullyDilutedValuation?: number;
+  circulatingSupply?: number;
+  dominance?: number;
+  name: string;
+  price: number;
+  change24h: number;
+  high24h?: number;
+  low24h?: number;
+  volume24h?: number;
+  history: HistoryPoint[];
   lastUpdated: string;
 }
 
@@ -136,6 +140,36 @@ export interface WeeklyHistoryEntry extends WeeklyPrediction {
   wasCorrect: boolean;
 }
 
+export interface TradeEntry {
+  id: string;
+  asset: Asset;
+  timeframe: Timeframe;
+  direction: Direction;
+  entryPrice: number;
+  targetPrice: number;
+  stopLoss: number;
+  exitPrice?: number;
+  exitDate?: string;
+  result: "win" | "loss" | "breakeven" | "open";
+  pnlPercent?: number;
+  entryDate: string;
+  note?: string;
+}
+
+export interface TradeStats {
+  total: number;
+  wins: number;
+  losses: number;
+  breakevens: number;
+  open: number;
+  winRate: number;
+  avgPnl: number;
+  bestTrade: number;
+  worstTrade: number;
+  totalPnl: number;
+  avgRR: number;
+}
+
 // ─── News ─────────────────────────────────────────────────────────────────────
 export interface NewsItem {
   title: string; url: string; source: string;
@@ -143,6 +177,17 @@ export interface NewsItem {
 }
 
 // ─── App State ────────────────────────────────────────────────────────────────
+export interface PriceAlert {
+  id: string;
+  asset: Asset;
+  condition: "above" | "below";
+  targetPrice: number;
+  message: string;
+  createdAt: string;
+  triggered: boolean;
+  triggeredAt?: string;
+}
+
 export interface AppState {
   asset: Asset; timeframe: Timeframe; theme: Theme;
   activeTab: "dashboard" | "history";

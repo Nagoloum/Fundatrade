@@ -106,7 +106,7 @@ function MetricRow({ label, value, tooltip, signal, signalLabel }: MetricRowProp
 }
 
 export default function FundamentalCard({ data }: FundamentalCardProps) {
-  if (!data.marketCap || !data.volume24h) return null;
+  if (data.marketCap == null || data.volume24h == null) return null;
 
   // Ratio Volume / Market Cap — indique la liquidité et l'activité
   const volumeRatio = data.volume24h / data.marketCap;
