@@ -10,6 +10,10 @@ export type WeeklyStatus = "active" | "target_hit" | "stop_hit" | "expired";
 export interface HistoryPoint { date: string; price: number; volume?: number; }
 
 export interface MarketData {
+  marketCap: any;
+  fullyDilutedValuation: any;
+  circulatingSupply: import("react").JSX.Element;
+  dominance: import("react").JSX.Element;
   name: string; price: number; change24h: number;
   high24h?: number; low24h?: number;
   volume24h?: number; history: HistoryPoint[];

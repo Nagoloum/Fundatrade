@@ -228,10 +228,10 @@ export default function FundamentalCard({ data }: FundamentalCardProps) {
           signalLabel={volumeRatioLabel}
         />
 
-        {data.circulatingSupply && (
+        {data.circulatingSupply && typeof data.circulatingSupply === "number" && (
           <MetricRow
             label="Supply en circulation"
-            value={formatSupply(data.circulatingSupply)}
+            value={formatSupply(data.circulatingSupply as number)}
             tooltip="Nombre de tokens actuellement disponibles sur le marché."
           />
         )}
@@ -246,10 +246,10 @@ export default function FundamentalCard({ data }: FundamentalCardProps) {
           />
         )}
 
-        {data.dominance && (
+        {data.dominance && typeof data.dominance === "number" && (
           <MetricRow
             label="Dominance BTC"
-            value={`${data.dominance.toFixed(1)}%`}
+            value={`${(data.dominance as number).toFixed(1)}%`}
             tooltip="Part de marché de Bitcoin. Une dominance élevée (>55%) signale un marché risk-off, favorable à BTC."
             signal={data.dominance > 55 ? "positive" : data.dominance < 45 ? "negative" : "neutral"}
             signalLabel={
