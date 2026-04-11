@@ -403,7 +403,7 @@ const FundatradeManual: React.FC = () => {
 
           <div className="card card-dark">
             <div className="card-title">🎛️ Barre de sélection</div>
-            <div className="card-body">Permet de choisir l&apos;actif analysé (BTC, ETH, SOL, Or) et la timeframe (4H, 1J, 1 Sem). Tout le contenu se recalcule automatiquement à chaque changement.</div>
+            <div className="card-body">Permet de choisir l&apos;actif analysé (BTC, XAUUSD) et la timeframe (4H, 1J, 1 Sem). Tout le contenu se recalcule automatiquement à chaque changement.</div>
           </div>
 
           <div className="card card-dark">
@@ -434,8 +434,6 @@ const FundatradeManual: React.FC = () => {
             <thead><tr><th>Actif</th><th>Nom complet</th><th>Type</th><th>Source des données</th></tr></thead>
             <tbody>
               <tr><td>BTC</td><td>Bitcoin</td><td>Cryptomonnaie</td><td>Binance (BTCUSDT)</td></tr>
-              <tr><td>ETH</td><td>Ethereum</td><td>Cryptomonnaie</td><td>Binance (ETHUSDT)</td></tr>
-              <tr><td>SOL</td><td>Solana</td><td>Cryptomonnaie</td><td>Binance (SOLUSDT)</td></tr>
               <tr><td>XAUUSD</td><td>Or (Gold)</td><td>Matière première</td><td>Yahoo Finance (GC=F)</td></tr>
             </tbody>
           </table>
@@ -549,7 +547,7 @@ const FundatradeManual: React.FC = () => {
             <div className="section-number">07</div>
             <h2 className="section-title">Données fondamentales (crypto uniquement)</h2>
           </div>
-          <p>Cette carte n&apos;apparaît que pour BTC, ETH et SOL (pas pour l&apos;or). Elle analyse la <strong>santé financière on-chain</strong> de l&apos;actif.</p>
+          <p>Cette carte n&apos;apparaît que pour BTC, XAUUSD. Elle analyse la <strong>santé financière on-chain</strong> de l&apos;actif.</p>
 
           <h3>Métriques affichées</h3>
           <table className="reading-table">
@@ -1032,7 +1030,7 @@ const FundatradeManual: React.FC = () => {
 
           <h3>Scénario 2 — Signal baissier avec divergence</h3>
           <div className="example-box">
-            <div className="eg-title">Ethereum — Timeframe 4H</div>
+            <div className="eg-title">XAUUSD — Timeframe 4H</div>
             Prix : <span className="eg-orange">$3,450</span>  ▼ <span className="eg-red">-1.2% (24h)</span><br />
             Signal : <span className="eg-orange">◆ NEUTRAL</span>  Confiance : <span className="eg-orange">52%</span><br />
             Score Global : <span className="eg-orange">48</span><br />

@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 const ASSET_META: Record<Asset, { name: string; symbol: string; color: string }> = {
   BTC:    { name: "Bitcoin",    symbol: "₿",  color: "#f7931a" },
-  ETH:    { name: "Ethereum",   symbol: "Ξ",  color: "#627eea" },
-  SOL:    { name: "Solana",     symbol: "◎",  color: "#9945ff" },
   XAUUSD: { name: "Or (XAUUSD)", symbol: "Au", color: "#ffd700" },
 };
 

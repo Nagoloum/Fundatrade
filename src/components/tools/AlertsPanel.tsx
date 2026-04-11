@@ -20,9 +20,9 @@ function fireNotif(title: string, body: string) {
   if (Notification.permission === "granted") new Notification(title, { body });
 }
 
-const ASSETS: Asset[] = ["BTC", "ETH", "SOL", "XAUUSD"];
-const ASSET_ICONS: Record<string, string>  = { BTC: "₿", ETH: "Ξ", SOL: "◎", XAUUSD: "Au" };
-const ASSET_COLORS: Record<string, string> = { BTC: "#f7931a", ETH: "#627eea", SOL: "#9945ff", XAUUSD: "#e5c84a" };
+const ASSETS: Asset[] = ["BTC", "XAUUSD"];
+const ASSET_ICONS: Record<string, string>  = { BTC: "₿", XAUUSD: "Au" };
+const ASSET_COLORS: Record<string, string> = { BTC: "#f7931a", XAUUSD: "#e5c84a" };
 
 interface AlertsPanelProps {
   currentPrices: Partial<Record<Asset, number>>;

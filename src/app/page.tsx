@@ -32,8 +32,6 @@ const PRED_MS  = 30_000;    // 30 sec
 // Kraken WS pairs
 const WS_PAIR: Record<Asset, string | null> = {
   BTC:    "XBT/USD",
-  ETH:    "XETH/USD",
-  SOL:    "XSOL/USD",
   XAUUSD: null,
 };
 

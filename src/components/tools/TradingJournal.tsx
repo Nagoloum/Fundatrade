@@ -42,7 +42,7 @@ function computeStats(trades: TradeEntry[]): TradeStats {
   };
 }
 
-const ASSETS: Asset[] = ["BTC", "ETH", "SOL", "XAUUSD"];
+const ASSETS: Asset[] = ["BTC", "XAUUSD"];
 const TFS: Timeframe[] = ["4H", "1J", "1W"];
 const DIRS: Direction[] = ["BULLISH", "BEARISH", "NEUTRAL"];
 const RESULTS = ["win", "loss", "breakeven", "open"] as const;
